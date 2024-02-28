@@ -30,7 +30,7 @@
 #include "alpaka/lockstep/WorkerCfg.hpp"
 #include "pmacc/types.hpp"
 
-namespace pmacc::lockstep
+namespace alpaka::lockstep
 {
     namespace exec
     {
@@ -87,8 +87,7 @@ namespace pmacc::lockstep
                  *
                  * This objects contains the functor and the starting parameter.
                  *
-                 * @tparam T_VectorGrid type which defines the grid extents (type must be castable to cupla dim3)
-                 * @tparam T_VectorBlock type which defines the block extents (type must be castable to cupla dim3)
+                 * @tparam T_VectorGrid type which defines the grid extents
                  *
                  * @param gridExtent grid extent configuration for the kernel
                  * @param blockExtent block extent configuration for the kernel
@@ -151,7 +150,7 @@ namespace pmacc::lockstep
         }
 
     } // namespace exec
-} // namespace pmacc::lockstep
+} // namespace alpaka::lockstep
 
 /** Create a kernel object out of a functor instance.
  *
