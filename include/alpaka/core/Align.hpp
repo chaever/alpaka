@@ -68,8 +68,3 @@ namespace alpaka::core
 // The optimal alignment for a type is the next higher or equsal power of two.
 #define ALPAKA_OPTIMAL_ALIGNMENT(...)                                                                                 \
     ::alpaka::core::align::OptimalAlignment<sizeof(std::remove_cv_t<__VA_ARGS__>)>::value
-
-#define ALPAKA_LOCKSTEP_ALIGN(var, ...) alignas(/** \bug avoid bug if alignment is >16 byte                           \
-             * https://github.com/ComputationalRadiationPhysics/picongpu/issues/1563                                  \
-             */                                                                                                       \
-            std::min(RoundUpToPowerOfTwo<sizeof(__VA_ARGS__)>, 16)) __VA_ARGS__ var
