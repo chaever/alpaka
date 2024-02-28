@@ -23,7 +23,7 @@
 
 #include "alpaka/lockstep/Config.hpp"
 #include "alpaka/lockstep/Idx.hpp"
-#include "pmacc/memory/Array.hpp"
+#include "alpaka/lockstep/DeviceCapableArray.hpp"
 #include "pmacc/types.hpp"
 
 #include <type_traits>
@@ -49,14 +49,14 @@ namespace alpaka
          */
         template<typename T_Type, typename T_Config>
         struct Variable
-            : protected memory::Array<T_Type, T_Config::maxIndicesPerWorker>
+            : protected lockstep::DeviceCapableArray<T_Type, T_Config::maxIndicesPerWorker>
             , T_Config
         {
             using T_Config::domainSize;
             using T_Config::numWorkers;
             using T_Config::simdSize;
 
-            using BaseArray = memory::Array<T_Type, T_Config::maxIndicesPerWorker>;
+            using BaseArray = lockstep::DeviceCapableArray<T_Type, T_Config::maxIndicesPerWorker>;
 
             /** default constructor
              *

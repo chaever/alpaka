@@ -22,7 +22,6 @@
 #pragma once
 
 #include "pmacc/types.hpp"
-#include "alpaka/core/Align.hpp"
 
 
 namespace alpaka
@@ -66,9 +65,9 @@ namespace alpaka
             }
 
             //! virtual workers linear index of the work item
-            ALPAKA_LOCKSTEP_ALIGN(workerElemIdx, uint32_t const);
+            uint32_t const workerElemIdx;
             //! linear index within the domain
-            ALPAKA_LOCKSTEP_ALIGN(domElemIdx, uint32_t const);
+            uint32_t const domElemIdx;
         };
 
 
