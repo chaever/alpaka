@@ -43,7 +43,7 @@ namespace alpaka::lockstep
     {
     private:
         //! index of the worker: range [0;numWorkers) */
-        PMACC_ALIGN(m_workerIdx, uint32_t const);
+        uint32_t const m_workerIdx;
         T_Acc const& m_acc;
 
         friend struct WorkerCfg<T_numSuggestedWorkers>;

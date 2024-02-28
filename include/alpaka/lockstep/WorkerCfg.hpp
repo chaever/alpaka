@@ -25,9 +25,6 @@
 #include "GetNumWorkers.hpp"
 #include "pmacc/types.hpp"
 
-#include "pmacc/math/vector/compile-time/Vector.hpp"
-
-
 namespace alpaka::lockstep
 {
     namespace detail
@@ -65,7 +62,7 @@ namespace alpaka::lockstep
      *                               with getNumWorkers() or via the member variable numWorkers.
      *
      * @attention: The real number of workers used for the lockstep kernel depends on the alpaka backend and will
-     * be adjusted by this class via the trait pmacc::traits::GetNumWorkers.
+     * be adjusted by this class via the trait alpaka::traits::GetNumWorkers.
      */
     template<uint32_t T_numSuggestedWorkers>
     struct WorkerCfg
@@ -77,7 +74,7 @@ namespace alpaka::lockstep
          * This number is taking the block size restriction of the alpaka backend into account.
          */
         template<typename T_Acc>
-        static constexpr uint32_t numWorkers = pmacc::traits::GetNumWorkers<T_numSuggestedWorkers, AccToTag<T_Acc>>::value;
+        static constexpr uint32_t numWorkers = alpaka::traits::GetNumWorkers<T_numSuggestedWorkers, AccToTag<T_Acc>>::value;
 
         /** get the worker index
          *
@@ -124,28 +121,6 @@ namespace alpaka::lockstep
         }
     };
 
-    inline namespace traits
-    {
-        /** Factory to create a worker config from a PMacc compile time vector.
-         *
-         * @tparam T_CTVector PMacc compile time vector
-         * @treturn ::type worker configuration type
-         */
-        template<typename T_CTVector>
-        struct MakeWorkerCfg;
-
-        template<typename T_X, typename T_Y, typename T_Z>
-        struct MakeWorkerCfg<math::CT::Vector<T_X, T_Y, T_Z>>
-        {
-            using Size = math::CT::Vector<T_X, T_Y, T_Z>;
-            using type = WorkerCfg<math::CT::volume<Size>::type::value>;
-        };
-
-        //! Factory alias to get the worker configuration type.
-        template<typename T_CTVector>
-        using MakeWorkerCfg_t = typename MakeWorkerCfg<T_CTVector>::type;
-    } // namespace traits
-
     /** Creates a lockstep worker configuration.
      *
      * @tparam T_numSuggestedWorkers Suggested number of lockstep workers.
@@ -155,19 +130,5 @@ namespace alpaka::lockstep
     HDINLINE auto makeWorkerCfg()
     {
         return WorkerCfg<T_numSuggestedWorkers>{};
-    }
-
-    /** Specialization to create a lockstep worker configuration out of a PMacc compile time vector.
-     *
-     * @tparam T_X number of elements in X
-     * @tparam T_Y number of elements in Y
-     * @tparam T_Z number of elements in Z
-     * @return lockstep worker configuration
-     */
-    template<typename T_X, typename T_Y, typename T_Z>
-    HDINLINE auto makeWorkerCfg(math::CT::Vector<T_X, T_Y, T_Z> const&)
-    {
-        using Size = math::CT::Vector<T_X, T_Y, T_Z>;
-        return MakeWorkerCfg_t<Size>{};
     }
 } // namespace alpaka::lockstep
