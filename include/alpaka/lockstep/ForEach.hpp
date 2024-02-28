@@ -342,4 +342,4 @@ namespace alpaka
         }
 
     } // namespace lockstep
-} // namespace pmacc
+} // namespace alpaka

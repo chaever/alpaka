@@ -37,7 +37,7 @@ namespace alpaka
          * @tparam T_Acc the accelerator type
          * @return @p ::value number of workers
          */
-        template<uint32_t T_maxWorkers, typename T_AccTag = AccToTag<cupla::AccThreadSeq>>
+        template<uint32_t T_maxWorkers, typename T_AccTag>
         struct GetNumWorkers
         {
             static constexpr uint32_t value = T_maxWorkers;
@@ -61,6 +61,6 @@ namespace alpaka
             static constexpr uint32_t value = 1u;
         };
     } // namespace traits
-} // namespace pmacc
+} // namespace alpaka
 
 

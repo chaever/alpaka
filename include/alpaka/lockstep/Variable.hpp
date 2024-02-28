@@ -29,7 +29,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace pmacc
+namespace alpaka
 {
     namespace lockstep
     {
@@ -143,4 +143,4 @@ namespace pmacc
         }
 
     } // namespace lockstep
-} // namespace pmacc
+} // namespace alpaka
