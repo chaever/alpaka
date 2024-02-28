@@ -101,5 +101,10 @@ namespace alpaka::lockstep
         {
             return numWorkers;
         }
+
+        HDINLINE static constexpr uint32_t getSuggestedNumWorkers()
+        {
+            return T_numSuggestedWorkers;
+        }
     };
 } // namespace alpaka::lockstep
