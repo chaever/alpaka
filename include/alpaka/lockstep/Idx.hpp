@@ -24,7 +24,7 @@
 #include "pmacc/types.hpp"
 
 
-namespace pmacc
+namespace alpaka
 {
     namespace lockstep
     {
@@ -72,4 +72,4 @@ namespace pmacc
 
 
     } // namespace lockstep
-} // namespace pmacc
+} // namespace alpaka

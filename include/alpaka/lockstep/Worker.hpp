@@ -24,7 +24,7 @@
 #include "pmacc/types.hpp"
 
 
-namespace pmacc::lockstep
+namespace alpaka::lockstep
 {
     template<uint32_t T_numSuggestedWorkers>
     struct WorkerCfg;
@@ -90,7 +90,7 @@ namespace pmacc::lockstep
          */
         HDINLINE void sync() const
         {
-            cupla::__syncthreads(m_acc);
+            alpaka::syncBlockThreads(acc);
         }
 
         /** get the number of workers
@@ -102,4 +102,4 @@ namespace pmacc::lockstep
             return numWorkers;
         }
     };
-} // namespace pmacc::lockstep
+} // namespace alpaka::lockstep
