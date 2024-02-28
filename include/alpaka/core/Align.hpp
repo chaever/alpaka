@@ -33,11 +33,16 @@ namespace alpaka::core
             : std::integral_constant<std::size_t, RoundUpToPowerOfTwo<(N | (N - 1)) + 1>::value>
         {
         };
+
+        template<std::size_t N>
+        struct IsPowerOfTwo{
+            static constexpr bool value = ((N & (N - 1)) == 0);
+        };
     } // namespace detail
 
     template<std::size_t N>
     struct RoundUpToPowerOfTwo
-        : std::integral_constant<std::size_t, detail::RoundUpToPowerOfTwoHelper<N, (N & (N - 1)) == 0>::value>
+        : std::integral_constant<std::size_t, detail::RoundUpToPowerOfTwoHelper<N, IsPowerOfTwo<N>::value>::value>
     {
     };
 
@@ -60,6 +65,11 @@ namespace alpaka::core
     } // namespace align
 } // namespace alpaka::core
 
-// The optimal alignment for a type is the next higher or equal power of two.
+// The optimal alignment for a type is the next higher or equsal power of two.
 #define ALPAKA_OPTIMAL_ALIGNMENT(...)                                                                                 \
     ::alpaka::core::align::OptimalAlignment<sizeof(std::remove_cv_t<__VA_ARGS__>)>::value
+
+#define ALPAKA_LOCKSTEP_ALIGN(var, ...) alignas(/** \bug avoid bug if alignment is >16 byte                           \
+             * https://github.com/ComputationalRadiationPhysics/picongpu/issues/1563                                  \
+             */                                                                                                       \
+            std::min(RoundUpToPowerOfTwo<sizeof(__VA_ARGS__)>, 16)) __VA_ARGS__ var
