@@ -207,7 +207,8 @@ namespace alpaka
                         for(uint32_t s = 0u; s < simdSize; ++s)
                             detail::FunctorWrapper{}(
                                 std::forward<T_Functor>(functor),
-                                Idx(beginIdx + s, beginVirtualWorker + s),
+                                Idx(beginIdx + s, //Idx of the virtual worker in the domain
+                                beginVirtualWorker + s), //describes the how-many-th virtual worker this is for the executing worker
                                 std::forward<T_CtxVars>(ctxVars)...);
                     }
                 }
@@ -269,6 +270,7 @@ namespace alpaka
                     std::forward<T_Functor>(functor),
                     alpaka::core::declval<Idx>(),
                     std::forward<T_CtxVars>(ctxVars)...)))>(*this);
+                //call one of the operator()s that return void
                 this->operator()(
                     [&](Idx const& idx)
                     {
@@ -291,6 +293,7 @@ namespace alpaka
                 using type = ForEach<T_Worker, Config<T_domainSize, T_Worker::numWorkers, T_simdSize>>;
             };
 
+            //used to default T_simdSize to 1
             template<typename T_Worker, uint32_t T_domainSize, uint32_t T_simdSize = 1u>
             using MakeForEach_t = typename MakeForEach<T_Worker, T_domainSize, T_simdSize>::type;
         } // namespace traits
@@ -325,7 +328,7 @@ namespace alpaka
 
         /**@}*/
 
-        /** Creates an executor with a domain of one index.
+        /** Creates an executor with a domain of one index, meaning it will contain exactly one virtual worker.
          *
          * @attention It is not defined which worker is invoking the functor.
          *
