@@ -39,7 +39,7 @@ namespace alpaka
              * @param domElemIndex linear index within the domain
              * @param workerElemIndex virtual workers linear index of the work item
              */
-            HDINLINE Idx(uint32_t const domElemIndex, uint32_t const workerElemIndex)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Idx(uint32_t const domElemIndex, uint32_t const workerElemIndex)
                 : workerElemIdx(std::move(workerElemIndex))
                 , domElemIdx(std::move(domElemIndex))
             {
@@ -49,7 +49,7 @@ namespace alpaka
              *
              * @return range [0,domain size)
              */
-            HDINLINE operator uint32_t() const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE operator uint32_t() const
             {
                 return domElemIdx;
             }
@@ -59,7 +59,7 @@ namespace alpaka
 
         private:
             /** N-th element the worker is processing */
-            HDINLINE uint32_t getWorkerElemIdx() const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE uint32_t getWorkerElemIdx() const
             {
                 return workerElemIdx;
             }
