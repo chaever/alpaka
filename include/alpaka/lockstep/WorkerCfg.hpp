@@ -74,7 +74,7 @@ namespace alpaka::lockstep
          * This number is taking the block size restriction of the alpaka backend into account.
          */
         template<typename T_Acc>
-        static constexpr uint32_t numWorkers = alpaka::trait::GetNumWorkers<T_numSuggestedWorkers, alpaka::trait::AccToTag<T_Acc>>::value;
+        static constexpr uint32_t numWorkers = alpaka::trait::GetNumWorkers<T_numSuggestedWorkers, alpaka::AccToTag<T_Acc>>::value;
 
         /** get the worker index
          *
