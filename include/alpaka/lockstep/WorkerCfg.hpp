@@ -87,7 +87,7 @@ namespace alpaka::lockstep
             auto const blockExtent = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc);
 
             // validate that the kernel is started with the correct number of threads
-            ALPAKA_ASSERT_OFFLOAD(blockExtent.prod() == numWorkers<T_Acc>);
+            ALPAKA_ASSERT_ACC(blockExtent.prod() == numWorkers<T_Acc>);
 
             auto const linearThreadIdx = alpaka::mapIdx<1u>(localThreadIdx, blockExtent)[0];
             return Worker<T_Acc, T_numSuggestedWorkers>(acc, linearThreadIdx);
@@ -117,7 +117,7 @@ namespace alpaka::lockstep
             [[maybe_unused]] auto const blockDim = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc).x;
 
             // validate that the kernel is started with the correct number of threads
-            ALPAKA_ASSERT_OFFLOAD(blockDim == numWorkers<T_Acc>);
+            ALPAKA_ASSERT_ACC(blockDim == numWorkers<T_Acc>);
 
             return Worker<T_Acc, T_numSuggestedWorkers>(acc, alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc).x);
         }
