@@ -95,11 +95,13 @@ namespace alpaka::lockstep
 
         /** get the number of workers
          *
+         * @tparam T_Acc alpaka accelerator type
          * @return number of workers
          */
+        template<typename T_Acc>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr uint32_t getNumWorkers()
         {
-            return numWorkers;
+            return numWorkers<T_Acc>;
         }
 
     private:
@@ -115,7 +117,7 @@ namespace alpaka::lockstep
             [[maybe_unused]] auto const blockDim = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc).x;
 
             // validate that the kernel is started with the correct number of threads
-            ALPAKA_ASSERT_OFFLOAD(blockDim == numWorkers);
+            ALPAKA_ASSERT_OFFLOAD(blockDim == numWorkers<T_Acc>);
 
             return Worker<T_Acc, T_numSuggestedWorkers>(acc, alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc).x);
         }

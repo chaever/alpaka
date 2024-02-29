@@ -62,7 +62,7 @@ namespace alpaka::lockstep
         Worker& operator=(Worker const&) = delete;
 
         //! number of workers
-        static constexpr uint32_t numWorkers = WorkerCfg<T_numSuggestedWorkers>::numWorkers;
+        static constexpr uint32_t numWorkers = WorkerCfg<T_numSuggestedWorkers>::numWorkers<T_Acc>;
         using Acc = T_Acc;
 
         /** get the alpaka accelerator
@@ -90,7 +90,7 @@ namespace alpaka::lockstep
          */
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void sync() const
         {
-            alpaka::syncBlockThreads(acc);
+            alpaka::syncBlockThreads(m_acc);
         }
 
         /** get the number of workers
