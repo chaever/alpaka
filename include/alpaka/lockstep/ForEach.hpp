@@ -266,10 +266,10 @@ namespace alpaka
                 std::enable_if_t<!resultIsVoid<T_Functor, T_CtxVars...>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto operator()(T_Functor&& functor, T_CtxVars&&... ctxVars) const
             {
-                auto tmp = makeVar<ALPAKA_DECAY_T(decltype(alpaka::core::declval<detail::FunctorWrapper>()(
+                auto tmp = makeVar<std::decay_<decltype(alpaka::core::declval<detail::FunctorWrapper>()(
                     std::forward<T_Functor>(functor),
                     alpaka::core::declval<Idx>(),
-                    std::forward<T_CtxVars>(ctxVars)...)))>(*this);
+                    std::forward<T_CtxVars>(ctxVars)...))>>(*this);
                 //call one of the operator()s that return void
                 this->operator()(
                     [&](Idx const& idx)
