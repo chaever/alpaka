@@ -285,7 +285,7 @@ namespace alpaka
             /** @} */
         };
 
-        inline namespace traits
+        inline namespace trait
         {
             template<typename T_Worker, uint32_t T_domainSize, uint32_t T_simdSize = 1u>
             struct MakeForEach
@@ -296,7 +296,7 @@ namespace alpaka
             //used to default T_simdSize to 1
             template<typename T_Worker, uint32_t T_domainSize, uint32_t T_simdSize = 1u>
             using MakeForEach_t = typename MakeForEach<T_Worker, T_domainSize, T_simdSize>::type;
-        } // namespace traits
+        } // namespace trait
 
         /** Creates an executor to iterate over the given index domain.
          *
@@ -313,7 +313,7 @@ namespace alpaka
         template<uint32_t T_domainSize, typename T_Worker>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeForEach(T_Worker const& worker)
         {
-            return traits::MakeForEach_t<T_Worker, T_domainSize>(worker);
+            return trait::MakeForEach_t<T_Worker, T_domainSize>(worker);
         }
 
         /**
@@ -323,7 +323,7 @@ namespace alpaka
         template<uint32_t T_domainSize, uint32_t T_simdSize, typename T_Worker>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeForEach(T_Worker const& worker)
         {
-            return traits::MakeForEach_t<T_Worker, T_domainSize, T_simdSize>(worker);
+            return trait::MakeForEach_t<T_Worker, T_domainSize, T_simdSize>(worker);
         }
 
         /**@}*/
