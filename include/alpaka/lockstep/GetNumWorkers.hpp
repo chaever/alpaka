@@ -27,7 +27,7 @@
 
 namespace alpaka
 {
-    namespace traits
+    namespace trait
     {
         /** Get number of workers
          *
@@ -60,7 +60,7 @@ namespace alpaka
         {
             static constexpr uint32_t value = 1u;
         };
-    } // namespace traits
+    } // namespace trait
 } // namespace alpaka
 
 
