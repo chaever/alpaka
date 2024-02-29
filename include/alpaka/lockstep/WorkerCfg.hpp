@@ -62,7 +62,7 @@ namespace alpaka::lockstep
      *                               with getNumWorkers() or via the member variable numWorkers.
      *
      * @attention: The real number of workers used for the lockstep kernel depends on the alpaka backend and will
-     * be adjusted by this class via the trait alpaka::traits::GetNumWorkers.
+     * be adjusted by this class via the trait alpaka::trait::GetNumWorkers.
      */
     template<uint32_t T_numSuggestedWorkers>
     struct WorkerCfg
@@ -74,7 +74,7 @@ namespace alpaka::lockstep
          * This number is taking the block size restriction of the alpaka backend into account.
          */
         template<typename T_Acc>
-        static constexpr uint32_t numWorkers = alpaka::traits::GetNumWorkers<T_numSuggestedWorkers, AccToTag<T_Acc>>::value;
+        static constexpr uint32_t numWorkers = alpaka::trait::GetNumWorkers<T_numSuggestedWorkers, alpaka::trait::AccToTag<T_Acc>>::value;
 
         /** get the worker index
          *
