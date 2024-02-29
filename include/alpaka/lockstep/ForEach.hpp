@@ -43,14 +43,14 @@ namespace alpaka
             struct FunctorWrapperWithCtxVars
             {
                 template<typename T_Functor, typename... T_CtxVars>
-                HDINLINE auto operator()(T_Functor&& functor, Idx idx, T_CtxVars&&... ctxVars) const
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto operator()(T_Functor&& functor, Idx idx, T_CtxVars&&... ctxVars) const
                     -> decltype(functor(idx, std::forward<T_CtxVars>(ctxVars)...))
                 {
                     return functor(idx, std::forward<T_CtxVars>(ctxVars)...);
                 }
 
                 template<typename T_Functor, typename... T_CtxVars>
-                HDINLINE auto operator()(T_Functor&& functor, Idx idx, T_CtxVars&&... ctxVars) const
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto operator()(T_Functor&& functor, Idx idx, T_CtxVars&&... ctxVars) const
                     -> decltype(functor(std::forward<T_CtxVars>(ctxVars)...))
                 {
                     return functor(std::forward<T_CtxVars>(ctxVars)...);
@@ -64,13 +64,13 @@ namespace alpaka
             struct FunctorWrapperWithoutCtxVars
             {
                 template<typename T_Functor>
-                HDINLINE auto operator()(T_Functor&& functor, Idx idx) const -> decltype(functor(idx))
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto operator()(T_Functor&& functor, Idx idx) const -> decltype(functor(idx))
                 {
                     return functor(idx);
                 }
 
                 template<typename T_Functor>
-                HDINLINE auto operator()(T_Functor&& functor, Idx idx) const -> decltype(functor())
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto operator()(T_Functor&& functor, Idx idx) const -> decltype(functor())
                 {
                     return functor();
                 }
@@ -89,7 +89,7 @@ namespace alpaka
                     typename T_Functor,
                     typename... T_CtxVars,
                     std::enable_if_t<sizeof...(T_CtxVars) != 0, int> = 0>
-                HDINLINE decltype(auto) operator()(T_Functor&& functor, Idx idx, T_CtxVars&&... ctxVars) const
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE decltype(auto) operator()(T_Functor&& functor, Idx idx, T_CtxVars&&... ctxVars) const
                 {
                     return FunctorWrapperWithCtxVars{}(functor, idx, std::forward<T_CtxVars>(ctxVars)[idx]...);
                 }
@@ -98,7 +98,7 @@ namespace alpaka
                     typename T_Functor,
                     typename... T_CtxVars,
                     std::enable_if_t<sizeof...(T_CtxVars) == 0, int> = 0>
-                HDINLINE decltype(auto) operator()(T_Functor&& functor, Idx idx, T_CtxVars&&...) const
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE decltype(auto) operator()(T_Functor&& functor, Idx idx, T_CtxVars&&...) const
                 {
                     return FunctorWrapperWithoutCtxVars{}(functor, idx);
                 }
@@ -157,12 +157,12 @@ namespace alpaka
              *
              * @param workerIdx index of the worker: range [0;workerSize)
              */
-            HDINLINE
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE
             ForEach(T_Worker const& worker) : T_Worker(worker)
             {
             }
 
-            HDINLINE auto getWorker() const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto getWorker() const
             {
                 return static_cast<T_Worker>(*this);
             }
@@ -194,7 +194,7 @@ namespace alpaka
                 typename... T_CtxVars,
                 std::enable_if_t<resultIsVoid<T_Functor, T_CtxVars...> && domainSize != 1, int> = 0
                 >
-            HDINLINE void operator()(T_Functor&& functor, T_CtxVars&&... ctxVars) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void operator()(T_Functor&& functor, T_CtxVars&&... ctxVars) const
             {
                 // number of iterations each worker can safely execute without boundary checks
                 constexpr uint32_t peeledIterations = domainSize / (simdSize * numWorkers);
@@ -238,7 +238,7 @@ namespace alpaka
                 typename T_Functor,
                 typename... T_CtxVars,
                 std::enable_if_t<resultIsVoid<T_Functor, T_CtxVars...> && domainSize == 1, int> = 0>
-            HDINLINE void operator()(T_Functor&& functor, T_CtxVars&&... ctxVars) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void operator()(T_Functor&& functor, T_CtxVars&&... ctxVars) const
             {
                 if(this->getWorkerIdx() == 0u)
                     detail::FunctorWrapper{}(functor, Idx(0u, 0u), std::forward<T_CtxVars>(ctxVars)...);
@@ -264,7 +264,7 @@ namespace alpaka
                 typename T_Functor,
                 typename... T_CtxVars,
                 std::enable_if_t<!resultIsVoid<T_Functor, T_CtxVars...>, int> = 0>
-            HDINLINE auto operator()(T_Functor&& functor, T_CtxVars&&... ctxVars) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto operator()(T_Functor&& functor, T_CtxVars&&... ctxVars) const
             {
                 auto tmp = makeVar<ALPAKA_DECAY_T(decltype(alpaka::core::declval<detail::FunctorWrapper>()(
                     std::forward<T_Functor>(functor),
@@ -311,7 +311,7 @@ namespace alpaka
          * @{
          */
         template<uint32_t T_domainSize, typename T_Worker>
-        HDINLINE auto makeForEach(T_Worker const& worker)
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeForEach(T_Worker const& worker)
         {
             return traits::MakeForEach_t<T_Worker, T_domainSize>(worker);
         }
@@ -321,7 +321,7 @@ namespace alpaka
          * @tparam T_simdSize SIMD width
          */
         template<uint32_t T_domainSize, uint32_t T_simdSize, typename T_Worker>
-        HDINLINE auto makeForEach(T_Worker const& worker)
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeForEach(T_Worker const& worker)
         {
             return traits::MakeForEach_t<T_Worker, T_domainSize, T_simdSize>(worker);
         }
@@ -339,7 +339,7 @@ namespace alpaka
          * @return ForEach executor which can be invoked with a functor as argument.
          */
         template<typename T_Worker>
-        HDINLINE auto makeMaster(T_Worker const& worker)
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeMaster(T_Worker const& worker)
         {
             return makeForEach<1, 1>(worker);
         }

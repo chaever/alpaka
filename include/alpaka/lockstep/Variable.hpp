@@ -73,17 +73,17 @@ namespace alpaka
              * @param args element assigned to each member
              */
             template<typename... T_Args>
-            HDINLINE explicit Variable(T_Args&&... args) : BaseArray(std::forward<T_Args>(args)...)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit Variable(T_Args&&... args) : BaseArray(std::forward<T_Args>(args)...)
             {
             }
 
             /** disable copy constructor
              */
-            HDINLINE Variable(Variable const&) = delete;
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Variable(Variable const&) = delete;
 
-            HDINLINE Variable(Variable&&) = default;
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Variable(Variable&&) = default;
 
-            HDINLINE Variable& operator=(Variable&&) = default;
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Variable& operator=(Variable&&) = default;
 
             /** get element for the worker
              *
@@ -92,12 +92,12 @@ namespace alpaka
              *
              * @{
              */
-            HDINLINE typename BaseArray::const_reference operator[](Idx const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::const_reference operator[](Idx const idx) const
             {
                 return BaseArray::operator[](idx.getWorkerElemIdx());
             }
 
-            HDINLINE typename BaseArray::reference operator[](Idx const idx)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::reference operator[](Idx const idx)
             {
                 return BaseArray::operator[](idx.getWorkerElemIdx());
             }
@@ -116,7 +116,7 @@ namespace alpaka
          * step.
          */
         template<typename T_Type, typename T_Worker, typename T_Config>
-        HDINLINE auto makeVar(ForEach<T_Worker, T_Config> const& forEach)
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeVar(ForEach<T_Worker, T_Config> const& forEach)
         {
             return Variable<T_Type, typename ForEach<T_Worker, T_Config>::BaseConfig>();
         }
@@ -137,7 +137,7 @@ namespace alpaka
          * step.
          */
         template<typename T_Type, typename T_Worker, typename T_Config, typename... T_Args>
-        HDINLINE auto makeVar(ForEach<T_Worker, T_Config> const& forEach, T_Args&&... args)
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeVar(ForEach<T_Worker, T_Config> const& forEach, T_Args&&... args)
         {
             return Variable<T_Type, typename ForEach<T_Worker, T_Config>::BaseConfig>(std::forward<T_Args>(args)...);
         }
