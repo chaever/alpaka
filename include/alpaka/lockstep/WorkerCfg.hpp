@@ -23,7 +23,7 @@
 
 #include "alpaka/lockstep/Worker.hpp"
 #include "GetNumWorkers.hpp"
-#include "pmacc/types.hpp"
+
 
 namespace alpaka::lockstep
 {

@@ -24,7 +24,7 @@
 #include "alpaka/lockstep/Config.hpp"
 #include "alpaka/lockstep/Idx.hpp"
 #include "alpaka/lockstep/DeviceCapableArray.hpp"
-#include "pmacc/types.hpp"
+
 
 #include <type_traits>
 #include <utility>
