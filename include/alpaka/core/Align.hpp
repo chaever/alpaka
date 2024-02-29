@@ -42,7 +42,7 @@ namespace alpaka::core
 
     template<std::size_t N>
     struct RoundUpToPowerOfTwo
-        : std::integral_constant<std::size_t, detail::RoundUpToPowerOfTwoHelper<N, IsPowerOfTwo<N>::value>::value>
+        : std::integral_constant<std::size_t, detail::RoundUpToPowerOfTwoHelper<N, detail::IsPowerOfTwo<N>::value>::value>
     {
     };
 
