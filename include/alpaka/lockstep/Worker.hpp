@@ -62,7 +62,7 @@ namespace alpaka::lockstep
         Worker& operator=(Worker const&) = delete;
 
         //! number of workers
-        static constexpr uint32_t numWorkers = WorkerCfg<T_numSuggestedWorkers>::numWorkers<T_Acc>;
+        static constexpr uint32_t numWorkers = WorkerCfg<T_numSuggestedWorkers>::template numWorkers<T_Acc>;
         using Acc = T_Acc;
 
         /** get the alpaka accelerator
