@@ -23,7 +23,6 @@
 
 #include "alpaka/lockstep/ForEach.hpp"
 #include "alpaka/lockstep/Idx.hpp"
-#include "alpaka/lockstep/Kernel.hpp"
 #include "alpaka/lockstep/Variable.hpp"
 #include "alpaka/lockstep/Worker.hpp"
 #include "alpaka/lockstep/WorkerCfg.hpp"
