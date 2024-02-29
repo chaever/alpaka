@@ -40,14 +40,14 @@ namespace alpaka
             using const_pointer = value_type const*;
 
             /** get number of elements */
-            HDINLINE
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE
             constexpr size_type size() const
             {
                 return T_size;
             }
 
             /** get maximum number of elements */
-            HDINLINE
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE
             constexpr size_type max_size() const
             {
                 return T_size;
@@ -57,13 +57,13 @@ namespace alpaka
              *
              * @{
              */
-            HDINLINE
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE
             pointer data()
             {
                 return reinterpret_cast<pointer>(m_data);
             }
 
-            HDINLINE
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE
             const_pointer data() const
             {
                 return reinterpret_cast<const_pointer>(m_data);
@@ -83,7 +83,7 @@ namespace alpaka
              * @param value element assigned to each member
              */
             template<typename... T_Args>
-            HDINLINE DeviceCapableArray(T_Args&&... args)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE DeviceCapableArray(T_Args&&... args)
             {
                 for(size_type i = 0; i < size(); ++i)
                     reinterpret_cast<T_Type*>(m_data)[i] = std::move(T_Type{std::forward<T_Args>(args)...});
@@ -97,13 +97,13 @@ namespace alpaka
              * @{
              */
             template<typename T_Idx>
-            HDINLINE const_reference operator[](T_Idx const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE const_reference operator[](T_Idx const idx) const
             {
                 return reinterpret_cast<T_Type const*>(m_data)[idx];
             }
 
             template<typename T_Idx>
-            HDINLINE reference operator[](T_Idx const idx)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE reference operator[](T_Idx const idx)
             {
                 return reinterpret_cast<T_Type*>(m_data)[idx];
             }

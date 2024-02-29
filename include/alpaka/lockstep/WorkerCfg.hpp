@@ -49,7 +49,7 @@ namespace alpaka::lockstep
              * @return worker index
              */
             template<typename T_WorkerCfg, typename T_Acc>
-            HDINLINE static auto getWorker(T_Acc const& acc)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static auto getWorker(T_Acc const& acc)
             {
                 return T_WorkerCfg::getWorkerAssume1DThreads(acc);
             }
@@ -81,7 +81,7 @@ namespace alpaka::lockstep
          * @return index of the worker
          */
         template<typename T_Acc>
-        HDINLINE static auto getWorker(T_Acc const& acc)
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static auto getWorker(T_Acc const& acc)
         {
             auto const localThreadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc);
             auto const blockExtent = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc);
@@ -97,7 +97,7 @@ namespace alpaka::lockstep
          *
          * @return number of workers
          */
-        HDINLINE static constexpr uint32_t getNumWorkers()
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr uint32_t getNumWorkers()
         {
             return numWorkers;
         }
@@ -110,7 +110,7 @@ namespace alpaka::lockstep
          * @return lockstep worker index
          */
         template<typename T_Acc>
-        HDINLINE static auto getWorkerAssume1DThreads(T_Acc const& acc)
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static auto getWorkerAssume1DThreads(T_Acc const& acc)
         {
             [[maybe_unused]] auto const blockDim = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc).x;
 
@@ -127,7 +127,7 @@ namespace alpaka::lockstep
      * @return lockstep worker configuration
      */
     template<uint32_t T_numSuggestedWorkers>
-    HDINLINE auto makeWorkerCfg()
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeWorkerCfg()
     {
         return WorkerCfg<T_numSuggestedWorkers>{};
     }

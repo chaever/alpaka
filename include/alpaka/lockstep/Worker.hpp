@@ -52,7 +52,7 @@ namespace alpaka::lockstep
          *
          * @param workerIdx worker index
          */
-        HDINLINE Worker(T_Acc const& acc, uint32_t const workerIdx) : m_workerIdx(std::move(workerIdx)), m_acc(acc)
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Worker(T_Acc const& acc, uint32_t const workerIdx) : m_workerIdx(std::move(workerIdx)), m_acc(acc)
         {
         }
 
@@ -69,7 +69,7 @@ namespace alpaka::lockstep
          *
          * @return alpaka accelerator
          */
-        HDINLINE auto& getAcc() const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto& getAcc() const
         {
             return m_acc;
         }
@@ -78,7 +78,7 @@ namespace alpaka::lockstep
          *
          * @return index of the worker
          */
-        HDINLINE uint32_t getWorkerIdx() const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE uint32_t getWorkerIdx() const
         {
             return m_workerIdx;
         }
@@ -88,7 +88,7 @@ namespace alpaka::lockstep
          * @attention It is not allowed to call this method inside of an if branch or a loop if it is not guaranteed
          * that all workers are executing the same code branch.
          */
-        HDINLINE void sync() const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void sync() const
         {
             alpaka::syncBlockThreads(acc);
         }
@@ -97,12 +97,12 @@ namespace alpaka::lockstep
          *
          * @return number of workers
          */
-        HDINLINE static constexpr uint32_t getNumWorkers()
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr uint32_t getNumWorkers()
         {
             return numWorkers;
         }
 
-        HDINLINE static constexpr uint32_t getSuggestedNumWorkers()
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr uint32_t getSuggestedNumWorkers()
         {
             return T_numSuggestedWorkers;
         }
