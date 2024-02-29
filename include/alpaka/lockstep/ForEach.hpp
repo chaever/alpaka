@@ -25,7 +25,7 @@
 #include "alpaka/lockstep/Idx.hpp"
 #include "alpaka/lockstep/Variable.hpp"
 #include "alpaka/lockstep/Worker.hpp"
-#include "pmacc/types.hpp"
+
 
 #include <cstdint>
 #include <type_traits>

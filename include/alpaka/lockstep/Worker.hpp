@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include "pmacc/types.hpp"
+
 
 
 namespace alpaka::lockstep

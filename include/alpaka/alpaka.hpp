@@ -123,6 +123,8 @@
 #include "alpaka/kernel/TaskKernelGpuHipRt.hpp"
 #include "alpaka/kernel/TaskKernelGpuSyclIntel.hpp"
 #include "alpaka/kernel/Traits.hpp"
+// lockstep
+#include "alpaka/lockstep/lockstep.hpp"
 // math
 #include "alpaka/math/Complex.hpp"
 #include "alpaka/math/MathGenericSycl.hpp"
