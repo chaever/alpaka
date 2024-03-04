@@ -109,6 +109,12 @@ namespace alpaka
             }
             /** @} */
 
+            template<typename T_Xpr>
+            constexpr auto operator=(T_Xpr const&);
+
+            template<typename T_Other>
+            constexpr auto operator+(T_Other const &);
+
         private:
             /** data storage
              *
