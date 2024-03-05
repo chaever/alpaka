@@ -14,14 +14,19 @@ namespace alpaka::lockstep
 
         inline static constexpr std::size_t laneCount = 1u;
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const Elem_t* mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const Elem_t* const mem) -> Pack_t
         {
             return *mem;
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(Pack_t t, Elem_t* mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, Elem_t* const mem)
         {
             *mem = t;
+        }
+
+        template<typename T_Other>
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC operator+(T_Other const & other){
+            return *this + other;
         }
     };
 
@@ -33,14 +38,19 @@ namespace alpaka::lockstep
 
         inline static constexpr std::size_t laneCount = Pack_t::size;
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const Elem_t* mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const Elem_t* const mem) -> Pack_t
         {
             return Pack_t(mem);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(Pack_t t, Elem_t* mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, Elem_t *const mem)
         {
             t.copy_to(mem);
+        }
+
+        template<typename T_Other>
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC operator+(T_Other const & other){
+            return *this + other;
         }
     };
 
@@ -55,7 +65,7 @@ namespace alpaka::lockstep
 
         inline static constexpr std::size_t laneCount = Pack_t{}.size();
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const Elem_t* mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const Elem_t* const mem) -> Pack_t
         {
             Pack_t tmp;
             for(auto i=0u; i<laneCount; ++i)
@@ -63,10 +73,20 @@ namespace alpaka::lockstep
             return tmp;
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(Pack_t pack, Elem_t* mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t pack, Elem_t* const mem)
         {
             for(auto i=0u; i<laneCount; ++i)
                 mem[i] = pack[i];
+        }
+
+        template<typename T_Other>
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC operator+(T_Other const & other){
+            Pack_t tmp;
+            for(auto i=0u; i<laneCount; ++i){
+                tmp[i]=*this[i] + other[i];
+
+            }
+            return tmp;
         }
     };
 

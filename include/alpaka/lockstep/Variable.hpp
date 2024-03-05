@@ -85,37 +85,35 @@ namespace alpaka
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Variable& operator=(Variable&&) = default;
 
-            //give Xpr::getValueAtIndex() access to this classes getValueAtIndex()
-            template<typename T_Left, typename T_Right, typename T_Functor>
-            template<typename T_Idx>
-            friend auto lockstep::Xpr<T_Left, T_Right, T_Functor>::getValueAtIndex(T_Idx);
-
             //extend Variable to allow Xpr assignment
-            template<typename T_Xpr>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator=(T_Xpr const& xpr) {
+            template<typename T_Left, typename T_Right, typename T_Functor>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::Xpr<T_Left, T_Right, T_Functor> const& xpr) {
 
                 constexpr auto lanes = laneCount<T_Type>;
                 constexpr auto vectorLoops = T_Config::maxIndicesPerWorker/lanes;
 
                 //get pointer to start of internal data storage
-                T_Type* ptr = &this[0];
+                T_Type* ptr = BaseArray::data();
 
                 for(std::size_t i = 0u; i<vectorLoops; ++i, ptr+=lanes){
                     //uses the getValueAtIndex that returns Pack_t
-                    SimdPack_t<T_Type>::storeUnaligned(xpr.getValueAtIndex(SimdLookupIndex<T_Type>(i)), ptr);
+                    SimdLookupIndex<T_Type> index(i);
+                    const typename SimdPack_t<T_Type>::Pack_t tmp = xpr.getValueAtIndex(index);
+                    SimdPack_t<T_Type>::storeUnaligned(tmp, ptr);
                 }
                 for(std::size_t i = vectorLoops*lanes; i<T_Config::maxIndicesPerWorker; ++i, ++ptr){
                     //uses the getValueAtIndex that returns T_Type
-                    *ptr = xpr.getValueAtIndex(i);
+                    const T_Type tmp = xpr.getValueAtIndex(i);
+                    *ptr = tmp;
                 }
                 return *this;
             }
 
             //defines Variable + {Variable or Xpr}
             template<typename T_Other>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other) const {
                 using ThisVar_t = Variable<T_Type, T_Config>;
-                return Xpr<ThisVar_t, Addition, T_Other>(*this, other);
+                return Xpr<ThisVar_t, T_Other, Addition>(*this, other);
             }
 
             /** get element for the worker
@@ -135,6 +133,21 @@ namespace alpaka
                 return BaseArray::operator[](idx.getWorkerElemIdx());
             }
             /** @} */
+
+        private:
+
+            //give Xpr::getValueAtIndex() access to this classes getValueAtIndex()
+            template<typename T_Left, typename T_Right, typename T_Functor>
+            template<typename T_Idx>
+            friend constexpr const auto lockstep::Xpr<T_Left, T_Right, T_Functor>::getValueAtIndex(T_Idx) const;
+
+            //used by alpaka::lockstep::Xpr for the evaluation of Expression objects
+            template<typename T_Idx>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE const auto getValueAtIndex(T_Idx const idx) const
+            {
+                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
+            }
+
         };
 
         /** Creates a variable usable within a lockstep step
