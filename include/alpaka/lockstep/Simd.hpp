@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <experimental/simd>
+
 namespace alpaka::lockstep
 {
     //General-case SIMD interface, corresponds to a simdWidth of 1
