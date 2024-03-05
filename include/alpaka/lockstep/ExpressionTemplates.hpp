@@ -30,9 +30,9 @@ namespace alpaka::lockstep
         }
 
         template<typename T_Idx>
-        constexpr auto operator[](T_Idx i)
+        constexpr auto getValueAtIndex(T_Idx i)
         {
-            return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
+            return T_Functor::SIMD_EVAL_F(m_leftOperand.getValueAtIndex(i), m_rightOperand.getValueAtIndex(i));
         }
 
         template<typename T_Other>
