@@ -85,6 +85,39 @@ namespace alpaka
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Variable& operator=(Variable&&) = default;
 
+            //give Xpr::getValueAtIndex() access to this classes getValueAtIndex()
+            template<typename T_Left, typename T_Right, typename T_Functor>
+            template<typename T_Idx>
+            friend auto lockstep::Xpr<T_Left, T_Right, T_Functor>::getValueAtIndex(T_Idx);
+
+            //extend Variable to allow Xpr assignment
+            template<typename T_Xpr>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator=(T_Xpr const& xpr) {
+
+                constexpr auto lanes = laneCount<T_Type>;
+                constexpr auto vectorLoops = T_Config::maxIndicesPerWorker/lanes;
+
+                //get pointer to start of internal data storage
+                T_Type* ptr = &this[0];
+
+                for(std::size_t i = 0u; i<vectorLoops; ++i, ptr+=lanes){
+                    //uses the getValueAtIndex that returns Pack_t
+                    SimdPack_t<T_Type>::storeUnaligned(xpr.getValueAtIndex(SimdLookupIndex<T_Type>(i)), ptr);
+                }
+                for(std::size_t i = vectorLoops*lanes; i<T_Config::maxIndicesPerWorker; ++i, ++ptr){
+                    //uses the getValueAtIndex that returns T_Type
+                    *ptr = xpr.getValueAtIndex(i);
+                }
+                return *this;
+            }
+
+            //defines Variable + {Variable or Xpr}
+            template<typename T_Other>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other){
+                using ThisVar_t = Variable<T_Type, T_Config>;
+                return Xpr<ThisVar_t, Addition, T_Other>(*this, other);
+            }
+
             /** get element for the worker
              *
              * @tparam T_Idx any type which can be implicit casted to an integral type
