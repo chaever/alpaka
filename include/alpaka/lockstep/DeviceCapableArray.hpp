@@ -72,9 +72,6 @@ namespace alpaka
             };
         } // namespace detail
 
-
-
-
         /** static sized array
          *
          * mimic the most parts of the `std::array`
@@ -159,13 +156,6 @@ namespace alpaka
                 return data()[idx];
             }
             /** @} */
-
-            //used by alpaka::lockstep::Xpr for the evaluation of Expression objects
-            template<typename T_Idx>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE const auto getValueAtIndex(T_Idx const idx) const
-            {
-                return detail::IndexOperator<T_Idx>::eval(idx, &this[0]);
-            }
 
         private:
 

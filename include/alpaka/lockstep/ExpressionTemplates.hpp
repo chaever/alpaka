@@ -25,12 +25,12 @@ namespace alpaka::lockstep
         T_Left const& m_leftOperand;
         T_Right const& m_rightOperand;
     public:
-        Xpr(T_Left left, T_Right right):m_leftOperand(left), m_rightOperand(right)
+        Xpr(T_Left const & left, T_Right const & right):m_leftOperand(left), m_rightOperand(right)
         {
         }
 
         template<typename T_Idx>
-        constexpr auto getValueAtIndex(T_Idx i)
+        constexpr auto const getValueAtIndex(T_Idx const i) const
         {
             return T_Functor::SIMD_EVAL_F(m_leftOperand.getValueAtIndex(i), m_rightOperand.getValueAtIndex(i));
         }
@@ -38,7 +38,7 @@ namespace alpaka::lockstep
         template<typename T_Other>
         constexpr auto operator+(T_Other const & other){
             using ThisXpr_t = Xpr<T_Left, T_Right, T_Functor>;
-            return Xpr<ThisXpr_t, Addition, T_Other>(*this, other);
+            return Xpr<ThisXpr_t, T_Other, Addition>(*this, other);
         }
     };
 } // namespace alpaka::lockstep
