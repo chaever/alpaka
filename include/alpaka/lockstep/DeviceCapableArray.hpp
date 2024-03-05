@@ -21,10 +21,60 @@
 
 #pragma once
 
+#include "Simd.hpp"
+#include "ExpressionTemplates.hpp"
+
 namespace alpaka
 {
     namespace lockstep
     {
+        namespace detail
+        {
+
+            template<typename T_Idx>
+            struct IndexOperator{
+
+                template<typename T_Elem>
+                static T_Elem& eval(T_Idx idx, T_Elem* const ptr)
+                {
+                    return ptr[idx];
+                }
+
+                template<typename T_Elem>
+                static const T_Elem& eval(T_Idx idx, T_Elem const * const ptr)
+                {
+                    return ptr[idx];
+                }
+            };
+
+            //specialization for SIMD-SimdLookupIndex
+            //returns only const Packs because they are copies
+            template<typename T_Type>
+            struct IndexOperator<SimdLookupIndex<T_Type>>{
+
+                template<typename T_Elem>
+                static SimdPack_t<T_Elem> eval(SimdLookupIndex<T_Type> idx, T_Elem* const ptr)
+                {
+                    static_assert(std::is_same_v<T_Type, T_Elem>);
+                    SimdPack_t<T_Elem> tmp;
+                    tmp.loadUnaligned(ptr + static_cast<uint32_t>(idx));
+                    return tmp;
+                }
+
+                template<typename T_Elem>
+                static const SimdPack_t<T_Elem> eval(SimdLookupIndex<T_Type> idx, T_Elem const * const ptr)
+                {
+                    static_assert(std::is_same_v<T_Type, T_Elem>);
+                    SimdPack_t<T_Elem> tmp;
+                    tmp.loadUnaligned(ptr + static_cast<uint32_t>(idx));
+                    return tmp;
+                }
+            };
+        } // namespace detail
+
+
+
+
         /** static sized array
          *
          * mimic the most parts of the `std::array`
@@ -89,32 +139,44 @@ namespace alpaka
                     reinterpret_cast<T_Type*>(m_data)[i] = std::move(T_Type{std::forward<T_Args>(args)...});
             }
 
-            /** get N-th value
-             *
-             * @tparam T_Idx any type which can be implicit casted to an integral type
-             * @param idx index within the array
-             *
-             * @{
-             */
             template<typename T_Idx>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE const_reference operator[](T_Idx const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE const auto& operator[](T_Idx const idx) const
             {
-                return reinterpret_cast<T_Type const*>(m_data)[idx];
+                return detail::IndexOperator<T_Idx>::eval(idx, &this[0]);
+            }
+            template<typename T_Idx>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto& operator[](T_Idx idx)
+            {
+                return detail::IndexOperator<T_Idx>::eval(idx, &this[0]);
             }
 
-            template<typename T_Idx>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE reference operator[](T_Idx const idx)
-            {
-                return reinterpret_cast<T_Type*>(m_data)[idx];
-            }
-            /** @} */
-
+            //extend Array to allow assignment
             template<typename T_Xpr>
-            constexpr auto operator=(T_Xpr const&);
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator=(T_Xpr const& xpr) {
 
+                constexpr auto lanes = laneCount<T_Type>;
+                constexpr auto vectorLoops = T_size/lanes;
+
+                //get pointer to start of internal data storage
+                T_Type* ptr = &this[0];
+
+                for(std::size_t i = 0u; i<vectorLoops; ++i, ptr+=lanes){
+                    //uses the operator[] that returns Pack_t
+                    SimdPack_t<T_Type>::storeUnaligned(xpr[SimdLookupIndex<T_Type>(i)], ptr);
+                }
+                for(std::size_t i = vectorLoops*lanes; i<T_size; ++i, ++ptr){
+                    //uses the operator[] that returns T_Type
+                    *ptr = xpr[i];
+                }
+                return *this;
+            }
+
+            //defines Array + {Array or Xpr}
             template<typename T_Other>
-            constexpr auto operator+(T_Other const &);
-
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other){
+                using ThisArray_t = DeviceCapableArray<T_Type, T_size>;
+                return Xpr<ThisArray_t, Addition, T_Other>(*this, other);
+            }
         private:
             /** data storage
              *
