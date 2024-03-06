@@ -28,49 +28,6 @@ namespace alpaka
 {
     namespace lockstep
     {
-        namespace detail
-        {
-
-            template<typename T_Idx>
-            struct IndexOperator{
-
-                template<typename T_Elem>
-                static T_Elem& eval(T_Idx idx, T_Elem* const ptr)
-                {
-                    return ptr[idx];
-                }
-
-                template<typename T_Elem>
-                static const T_Elem& eval(T_Idx idx, T_Elem const * const ptr)
-                {
-                    return ptr[idx];
-                }
-            };
-
-            //specialization for SIMD-SimdLookupIndex
-            //returns only const Packs because they are copies
-            template<typename T_Type>
-            struct IndexOperator<SimdLookupIndex<T_Type>>{
-
-                template<typename T_Elem>
-                static SimdPack_t<T_Elem> eval(SimdLookupIndex<T_Type> idx, T_Elem* const ptr)
-                {
-                    static_assert(std::is_same_v<T_Type, T_Elem>);
-                    SimdPack_t<T_Elem> tmp;
-                    tmp.loadUnaligned(ptr + static_cast<uint32_t>(idx));
-                    return tmp;
-                }
-
-                template<typename T_Elem>
-                static const SimdPack_t<T_Elem> eval(SimdLookupIndex<T_Type> idx, T_Elem const * const ptr)
-                {
-                    static_assert(std::is_same_v<T_Type, T_Elem>);
-                    SimdPack_t<T_Elem> tmp;
-                    tmp.loadUnaligned(ptr + static_cast<uint32_t>(idx));
-                    return tmp;
-                }
-            };
-        } // namespace detail
 
         /** static sized array
          *
