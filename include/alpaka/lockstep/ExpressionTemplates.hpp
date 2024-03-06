@@ -16,6 +16,7 @@ namespace alpaka::lockstep
         //should also work for Simd-types that define their own operator+
         template<typename T_Left, typename T_Right>
         static constexpr decltype(auto) SIMD_EVAL_F(T_Left left, T_Right right){
+            //uses T_Left::operator+(T_Right)
             return left+right;
         }
     };
@@ -40,5 +41,7 @@ namespace alpaka::lockstep
             using ThisXpr_t = Xpr<T_Left, T_Right, T_Functor>;
             return Xpr<ThisXpr_t, T_Other, Addition>(*this, other);
         }
+
+        
     };
 } // namespace alpaka::lockstep
