@@ -36,6 +36,37 @@ namespace alpaka
         template<typename T_Worker, typename T_Config>
         class ForEach;
 
+        namespace detail
+        {
+
+            template<typename T_Idx>
+            struct IndexOperator{
+
+                template<typename T_Elem>
+                static T_Elem& eval(T_Idx idx, T_Elem* const ptr)
+                {
+                    return ptr[idx];
+                }
+
+                template<typename T_Elem>
+                static const T_Elem& eval(T_Idx idx, T_Elem const * const ptr)
+                {
+                    return ptr[idx];
+                }
+            };
+
+            //specialization for SIMD-SimdLookupIndex
+            //returns only const Packs because they are copies
+            template<typename T_Type>
+            struct IndexOperator<SimdLookupIndex<T_Type>>{
+
+                static const Pack_t<T_Type> eval(SimdLookupIndex<T_Type> idx, T_Type const * const ptr)
+                {
+                    return SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));;
+                }
+            };
+        } // namespace detail
+
         /** Variable used by virtual worker
          *
          * This object is designed to hold context variables in lock step
@@ -97,14 +128,11 @@ namespace alpaka
 
                 for(std::size_t i = 0u; i<vectorLoops; ++i, ptr+=lanes){
                     //uses the getValueAtIndex that returns Pack_t
-                    SimdLookupIndex<T_Type> index(i);
-                    const typename SimdPack_t<T_Type>::Pack_t tmp = xpr.getValueAtIndex(index);
-                    SimdPack_t<T_Type>::storeUnaligned(tmp, ptr);
+                    SimdInterface_t<T_Type>::storeUnaligned(xpr.getValueAtIndex(SimdLookupIndex<T_Type>(i)), ptr);
                 }
                 for(std::size_t i = vectorLoops*lanes; i<T_Config::maxIndicesPerWorker; ++i, ++ptr){
                     //uses the getValueAtIndex that returns T_Type
-                    const T_Type tmp = xpr.getValueAtIndex(i);
-                    *ptr = tmp;
+                    *ptr = xpr.getValueAtIndex(i);
                 }
                 return *this;
             }
@@ -145,6 +173,7 @@ namespace alpaka
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE const auto getValueAtIndex(T_Idx const idx) const
             {
+                //std::cout << "Variable::getValueAtIndex(" << std::setw(4) << static_cast<uint32_t>(idx) << "): returned " << detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data()) << std::endl;
                 return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
             }
 

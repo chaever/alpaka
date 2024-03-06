@@ -23,11 +23,6 @@ namespace alpaka::lockstep
         {
             *mem = t;
         }
-
-        template<typename T_Other>
-        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC operator+(T_Other const & other){
-            return *this + other;
-        }
     };
 
     //Specialization using std::experimental::simd
@@ -118,7 +113,10 @@ namespace alpaka::lockstep
 
     //conforms to the SimdInterface class above
     template<typename T_Type>
-    using SimdPack_t = SimdInterface<T_Type, selectedSIMDInfo::simdNonBool_t<T_Type>>;
+    using SimdInterface_t = SimdInterface<T_Type, selectedSIMDInfo::simdNonBool_t<T_Type>>;
+
+    template<typename T_Type>
+    using Pack_t = typename SimdInterface_t<T_Type>::Pack_t;
 
     template<typename T_Type>
     class SimdLookupIndex{
