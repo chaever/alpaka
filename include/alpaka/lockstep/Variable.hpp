@@ -118,7 +118,7 @@ namespace alpaka
 
             //extend Variable to allow Xpr assignment
             template<typename T_Left, typename T_Right, typename T_Functor>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::Xpr<T_Left, T_Right, T_Functor> const& xpr) {
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::Xpr<T_Functor, T_Left, T_Right> const& xpr) {
 
                 constexpr auto lanes = laneCount<T_Type>;
                 constexpr auto vectorLoops = T_Config::maxIndicesPerWorker/lanes;
@@ -141,7 +141,7 @@ namespace alpaka
             template<typename T_Other>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other) {
                 using ThisVar_t = Variable<T_Type, T_Config>;
-                return Xpr<ThisVar_t, T_Other, Addition>(*this, other);
+                return Xpr<Addition, ThisVar_t, T_Other>(*this, other);
             }
 
             /** get element for the worker

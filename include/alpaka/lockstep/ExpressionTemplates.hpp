@@ -31,13 +31,13 @@ namespace alpaka::lockstep
         template<typename T_Left, typename T_Right, std::enable_if_t< std::is_same_v<T_Right, Pack_t>, int> = 0>
         static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){
 
-            //uses T_Left::operator=(T_Right)
+            //assignment for SIMD means writing the pack back to an address
             return right.copy_to(&left);
         }
     };
 
     //const left operand
-    template<typename T_Left, typename T_Right, typename T_Functor>
+    template<typename T_Functor, typename T_Left, typename T_Right>
     class Xpr{
         T_Left const& m_leftOperand;
         T_Right const& m_rightOperand;
@@ -46,7 +46,7 @@ namespace alpaka::lockstep
         {
         }
 
-        using ThisXpr_t = Xpr<T_Left, T_Right, T_Functor>;
+        using ThisXpr_t = Xpr<T_Functor, T_Left, T_Right>;
 
         template<typename T_Idx>
         constexpr auto const getValueAtIndex(T_Idx const i) const
@@ -57,7 +57,7 @@ namespace alpaka::lockstep
         template<typename T_Other>
         constexpr auto operator+(T_Other const & other) const
         {
-            return Xpr<ThisXpr_t, T_Other, Addition>(*this, other);
+            return Xpr<Addition, ThisXpr_t, T_Other>(*this, other);
         }
 
         //writing to a readOnly expression is forbidden
@@ -66,7 +66,7 @@ namespace alpaka::lockstep
     };
 
     //non-const left operand to write to
-    template<typename T_Left, typename T_Right, typename T_Functor>
+    template<typename T_Functor, typename T_Left, typename T_Right>
     class WriteableXpr{
         T_Left & m_leftOperand;
         T_Right const& m_rightOperand;
@@ -75,26 +75,26 @@ namespace alpaka::lockstep
         {
         }
 
-        using ThisXpr_t = WriteableXpr<T_Left, T_Right, T_Functor>;
+        using ThisXpr_t = WriteableXpr<T_Functor, T_Left, T_Right>;
 
         template<typename T_Idx>
         constexpr auto const getValueAtIndex(T_Idx const i) const
         {
             //operator[] returns reference, which is then assignable
             //the cast transforms any SimdLookupIndices into ints
-            return Assignment::SIMD_EVAL_F(m_leftOperand[static_cast<uint32_t>(i)], m_rightOperand.getValueAtIndex(i));
+            return T_Functor::SIMD_EVAL_F(m_leftOperand[static_cast<uint32_t>(i)], m_rightOperand.getValueAtIndex(i));
         }
 
         template<typename T_Other>
         constexpr auto operator+(T_Other const & other) const
         {
-            return Xpr<ThisXpr_t, T_Other, Addition>(*this, other);
+            return Xpr<Addition, ThisXpr_t, T_Other>(*this, other);
         }
 
         template<typename T_Other>
         constexpr auto operator=(T_Other const & other) const
         {
-            return WriteableXpr<ThisXpr_t, T_Other, Assignment>(*this, other);
+            return WriteableXpr<Assignment, ThisXpr_t, T_Other>(*this, other);
         }
     };
 } // namespace alpaka::lockstep
