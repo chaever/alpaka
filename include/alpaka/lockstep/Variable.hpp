@@ -137,12 +137,14 @@ namespace alpaka
                 return *this;
             }
 
+            ///TODO Needed/wanted? avoids   eval(d=makeXpr(a)+b)   instead of eval(d=a+b)
+            /*
             //defines Variable + {Variable or Xpr}
             template<typename T_Other>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other) const {
                 using ThisVar_t = Variable<T_Type, T_Config>;
-                return Xpr<ThisVar_t, T_Other, Addition>(*this, other);
-            }
+                return Xpr<Addition, ThisVar_t, T_Other>(*this, other);
+            }*/
 
             /** get element for the worker
              *
@@ -162,20 +164,16 @@ namespace alpaka
             }
             /** @} */
 
-        private:
 
-            //give Xpr::getValueAtIndex() access to this classes getValueAtIndex()
-            template<typename T_Left, typename T_Right, typename T_Functor>
-            template<typename T_Idx>
-            friend constexpr const auto lockstep::Xpr<T_Left, T_Right, T_Functor>::getValueAtIndex(T_Idx) const;
 
             //used by alpaka::lockstep::Xpr for the evaluation of Expression objects
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE const auto getValueAtIndex(T_Idx const idx) const
             {
-                //std::cout << "Variable::getValueAtIndex(" << std::setw(4) << static_cast<uint32_t>(idx) << "): returned " << detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data()) << std::endl;
                 return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
             }
+
+        private:
 
         };
 
