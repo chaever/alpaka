@@ -49,7 +49,7 @@ namespace alpaka
                 }
 
                 template<typename T_Elem>
-                static const T_Elem& eval(T_Idx idx, T_Elem const * const ptr)
+                static T_Elem const& eval(T_Idx idx, T_Elem const * const ptr)
                 {
                     return ptr[idx];
                 }
@@ -118,7 +118,7 @@ namespace alpaka
 
             //extend Variable to allow Xpr assignment
             template<typename T_Left, typename T_Right, typename T_Functor>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::Xpr<T_Functor, T_Left, T_Right> const& xpr) {
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::ReadXpr<T_Functor, T_Left, T_Right> const& xpr) {
 
                 constexpr auto lanes = laneCount<T_Type>;
                 constexpr auto vectorLoops = T_Config::maxIndicesPerWorker/lanes;
@@ -137,11 +137,11 @@ namespace alpaka
                 return *this;
             }
 
-            //defines Variable + {Variable or Xpr}
+            //defines Variable + {Variable or ReadXpr}
             template<typename T_Other>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other) {
                 using ThisVar_t = Variable<T_Type, T_Config>;
-                return Xpr<Addition, ThisVar_t, T_Other>(*this, other);
+                return ReadXpr<Addition, ThisVar_t, T_Other>(*this, other);
             }
 
             /** get element for the worker
@@ -163,7 +163,7 @@ namespace alpaka
             /** @} */
 
 
-            //used by alpaka::lockstep::Xpr for the evaluation of Expression objects
+            //used by alpaka::lockstep::ReadXpr for the evaluation of Expression objects
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto getValueAtIndex(T_Idx const idx)
             {
