@@ -67,17 +67,6 @@ namespace alpaka
                     return ptr[idx.getWorkerElemIdx()];
                 }
             };
-
-            //specialization for SIMD-SimdLookupIndex
-            //returns only const Packs because they are copies
-            template<typename T_Type>
-            struct IndexOperator<SimdLookupIndex<T_Type>>{
-
-                static const Pack_t<T_Type> eval(SimdLookupIndex<T_Type> const idx, T_Type const * const ptr)
-                {
-                    return SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));;
-                }
-            };
         } // namespace detail
 
         /** Variable used by virtual worker
@@ -178,9 +167,6 @@ namespace alpaka
 
             template<typename T>
             friend class WriteLeafXpr;
-
-            template<typename T_Functor, typename T_Left, typename T_Right>
-            friend class Xpr;
 
         private:
             template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
