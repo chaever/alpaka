@@ -28,8 +28,10 @@ namespace alpaka
 {
     namespace lockstep
     {
-        template<typename T_Type, typename T_Config>
-        struct Variable;
+        namespace detail{
+            template<typename T_Idx>
+            struct IndexOperator;
+        }
 
         //! Hold current index within a lockstep domain
         struct Idx
@@ -54,8 +56,8 @@ namespace alpaka
                 return domElemIdx;
             }
 
-            template<typename T_Type, typename T_Config>
-            friend struct Variable;
+            template<typename T_Idx>
+            friend struct detail::IndexOperator;
 
         private:
             /** N-th element the worker is processing */
