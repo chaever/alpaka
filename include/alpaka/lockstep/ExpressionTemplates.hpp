@@ -103,9 +103,9 @@ namespace alpaka::lockstep
 
     //forward declarations
     template<typename T_Functor, typename T_Left, typename T_Right>
-    class ReadXpr;
+    class Xpr;
     template<typename T_Functor, typename T_Left, typename T_Right>
-    class WriteableXpr;
+    class Xpr;
 
     //cannot be assigned to
     //can be made from pointers, or some container classes
@@ -140,7 +140,7 @@ namespace alpaka::lockstep
         template<typename T_Other>
         constexpr auto operator+(T_Other const & other) const
         {
-            return ReadXpr<Addition, ThisXpr_t, T_Other>(*this, other);
+            return Xpr<Addition, ThisXpr_t, T_Other>(*this, other);
         }
     };
 
@@ -174,36 +174,36 @@ namespace alpaka::lockstep
         template<typename T_Other>
         constexpr decltype(auto) operator=(T_Other const & other) const
         {
-            return WriteableXpr<Assignment, ThisXpr_t, T_Other>(*this, other);
+            return Xpr<Assignment, ThisXpr_t, T_Other>(*this, other);
         }
     };
 
-
     //const left operand, cannot assign
     template<typename T_Functor, typename T_Left, typename T_Right>
-    class ReadXpr{
+    class Xpr{
 
         //left&right with constness added as required by the Functor
         using T_Left_const_t = XprArgLeft_t<T_Functor, T_Left>;
         using T_Right_const_t = XprArgRight_t<T_Functor, T_Right>;
-        using ThisXpr_t = ReadXpr<T_Functor, T_Left, T_Right>;
+
+        using ThisXpr_t = Xpr<T_Functor, T_Left, T_Right>;
 
         T_Left_const_t m_leftOperand;
         T_Right_const_t m_rightOperand;
     public:
-        ReadXpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right)
+        Xpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right)
         {
         }
 
         template<typename T_Idx>
         constexpr decltype(auto) operator[](T_Idx const i) const
         {
-            std::cout << "ReadXpr::operator[]: evaluating m_leftOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
+            std::cout << "Xpr::operator[]: evaluating m_leftOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
             const auto& tmp1 = m_leftOperand[i];
-            std::cout << "WriteableXpr::operator[]: m_leftOperand[" << static_cast<uint32_t>(i) << "] = " << tmp1 << std::endl;
-            std::cout << "ReadXpr::operator[]: evaluating m_rightOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
+            std::cout << "Xpr::operator[]: m_leftOperand[" << static_cast<uint32_t>(i) << "] = " << tmp1 << std::endl;
+            std::cout << "Xpr::operator[]: evaluating m_rightOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
             const auto& tmp2 = m_rightOperand[i];
-            std::cout << "WriteableXpr::operator[]: m_rightOperand[" << static_cast<uint32_t>(i) << "] = " << tmp2 << std::endl;
+            std::cout << "Xpr::operator[]: m_rightOperand[" << static_cast<uint32_t>(i) << "] = " << tmp2 << std::endl;
 
             return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
         }
@@ -211,44 +211,13 @@ namespace alpaka::lockstep
         template<typename T_Other>
         constexpr auto operator+(T_Other const & other) const
         {
-            return ReadXpr<Addition, ThisXpr_t, T_Other>(*this, other);
-        }
-
-        //writing to a readOnly expression is forbidden
-        template<typename T_Other>
-        constexpr auto operator=(T_Other const & other) = delete;
-    };
-
-    //non-const left operand to write to
-    template<typename T_Functor, typename T_Left, typename T_Right>
-    class WriteableXpr{
-
-        //left&right with constness added as required by the Functor
-        using T_Left_const_t = XprArgLeft_t<T_Functor, T_Left>;
-        using T_Right_const_t = XprArgRight_t<T_Functor, T_Right>;
-        using ThisXpr_t = WriteableXpr<T_Functor, T_Left, T_Right>;
-
-        T_Left_const_t m_leftOperand;
-        T_Right_const_t m_rightOperand;
-    public:
-        WriteableXpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right)
-        {
-        }
-
-        template<typename T_Idx>
-        constexpr decltype(auto) operator[](T_Idx const i) const
-        {
-            std::cout << "WriteableXpr::operator[]: evaluating m_rightOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
-            const auto& tmp = m_rightOperand[i];
-            std::cout << "WriteableXpr::operator[]: m_rightOperand[" << static_cast<uint32_t>(i) << "] = " << tmp << std::endl;
-            //operator[] returns reference, which is then assignable
-            return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
+            return Xpr<Addition, ThisXpr_t, T_Other>(*this, other);
         }
 
         template<typename T_Other>
         constexpr auto operator=(T_Other const & other) const
         {
-            return WriteableXpr<Assignment, ThisXpr_t, T_Other>(*this, other);
+            return Xpr<Assignment, ThisXpr_t, T_Other>(*this, other);
         }
     };
 

@@ -132,7 +132,7 @@ namespace alpaka
             //extend Variable to allow Xpr assignment
             ///TODO remove this later
             template<typename T_Left, typename T_Right, typename T_Functor>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::ReadXpr<T_Functor, T_Left, T_Right> const& xpr) {
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::Xpr<T_Functor, T_Left, T_Right> xpr) {
 
                 constexpr auto lanes = laneCount<T_Type>;
                 constexpr auto vectorLoops = T_Config::maxIndicesPerWorker/lanes;
@@ -180,10 +180,7 @@ namespace alpaka
             friend class WriteLeafXpr;
 
             template<typename T_Functor, typename T_Left, typename T_Right>
-            friend class ReadXpr;
-
-            template<typename T_Functor, typename T_Left, typename T_Right>
-            friend class WriteableXpr;
+            friend class Xpr;
 
         private:
             template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
