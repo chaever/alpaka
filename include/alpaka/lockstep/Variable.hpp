@@ -140,21 +140,14 @@ namespace alpaka
                 T_Type* ptr = BaseArray::data();
 
                 for(std::size_t i = 0u; i<vectorLoops; ++i, ptr+=lanes){
-                    //uses the operator[] that returns Pack_t
+                    //uses the operator[] that returns const Pack_t
                     SimdInterface_t<T_Type>::storeUnaligned(xpr[SimdLookupIndex<T_Type>(i)], ptr);
                 }
                 for(std::size_t i = vectorLoops*lanes; i<T_Config::maxIndicesPerWorker; ++i, ++ptr){
-                    //uses the operator[] that returns T_Type
+                    //uses the operator[] that returns const T_Type &
                     *ptr = xpr[i];
                 }
                 return *this;
-            }
-
-            //defines Variable + {Variable or ReadXpr}
-            template<typename T_Other>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other) {
-                using ThisVar_t = Variable<T_Type, T_Config>;
-                return ReadXpr<Addition, ThisVar_t, T_Other>(*this, other);
             }
 
             /** get element for the worker
