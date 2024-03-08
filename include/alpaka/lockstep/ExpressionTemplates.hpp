@@ -34,7 +34,7 @@ namespace alpaka::lockstep
         template<typename T_Type>
         struct IndexOperatorLeafRead<SimdLookupIndex<T_Type>>{
 
-            static const Pack_t<T_Type> eval(SimdLookupIndex<T_Type> idx, T_Type const * const ptr)
+            static Pack_t<T_Type> const eval(SimdLookupIndex<T_Type> idx, T_Type const * const ptr)
             {
                 return SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
             }
@@ -102,7 +102,7 @@ namespace alpaka::lockstep
 
         //returns const ref, since Leaves are not meant to be assigned to
         template<typename T_Idx>
-        auto const& operator[](T_Idx const idx) const
+        decltype(auto) operator[](T_Idx const idx) const
         {
             return detail::IndexOperatorLeafRead<T_Idx>::eval(idx, &m_source);
         }
@@ -161,7 +161,7 @@ namespace alpaka::lockstep
         using ThisXpr_t = ReadXpr<T_Functor, T_Left, T_Right>;
 
         template<typename T_Idx>
-        constexpr auto const& operator[](T_Idx const i) const
+        constexpr decltype(auto) operator[](T_Idx const i) const
         {
             return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
         }
@@ -193,7 +193,6 @@ namespace alpaka::lockstep
         constexpr auto & operator[](T_Idx const i) const
         {
             //operator[] returns reference, which is then assignable
-            //the cast transforms any SimdLookupIndices into ints
             return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
         }
 
