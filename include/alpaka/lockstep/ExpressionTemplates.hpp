@@ -33,7 +33,7 @@ namespace alpaka::lockstep
             template<typename T_Elem>
             static T_Elem const& eval(T_Idx idx, T_Elem const * const ptr)
             {
-                std::cout << "IndexOperatorLeafRead<uint32_t>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
+                //std::cout << "IndexOperatorLeafRead<uint32_t>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
 
                 return ptr[idx];
             }
@@ -46,9 +46,9 @@ namespace alpaka::lockstep
 
             static Pack_t<T_Type> const eval(SimdLookupIndex<T_Type> idx, T_Type const * const ptr)
             {
-                std::cout << "IndexOperatorLeafRead<SimdLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
-                const auto& tmp = SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
-                std::cout << "IndexOperatorLeafRead<SimdLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
+                //std::cout << "IndexOperatorLeafRead<SimdLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
+                //const auto& tmp = SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
+                //std::cout << "IndexOperatorLeafRead<SimdLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
 
                 return SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
             }
@@ -178,9 +178,9 @@ namespace alpaka::lockstep
         template<typename T_Idx>
         decltype(auto) operator[](T_Idx const idx) const
         {
-            std::cout << "ReadLeafXpr::operator[]: evaluating IndexOperatorLeafRead::eval(" << static_cast<uint32_t>(idx) << ")..." << std::endl;
-            const auto& tmp = detail::IndexOperatorLeafRead<T_Idx>::eval(idx, &m_source);
-            std::cout << "ReadLeafXpr::operator[]: IndexOperatorLeafRead::eval(" << static_cast<uint32_t>(idx) << ") = " << tmp << std::endl;
+            //std::cout << "ReadLeafXpr::operator[]: evaluating IndexOperatorLeafRead::eval(" << static_cast<uint32_t>(idx) << ")..." << std::endl;
+            //const auto& tmp = detail::IndexOperatorLeafRead<T_Idx>::eval(idx, &m_source);
+            //std::cout << "ReadLeafXpr::operator[]: IndexOperatorLeafRead::eval(" << static_cast<uint32_t>(idx) << ") = " << tmp << std::endl;
 
             return detail::IndexOperatorLeafRead<T_Idx>::eval(idx, &m_source);
         }
@@ -252,12 +252,12 @@ namespace alpaka::lockstep
         template<typename T_Idx>
         constexpr decltype(auto) operator[](T_Idx const i) const
         {
-            std::cout << "Xpr::operator[]: evaluating m_leftOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
-            const auto& tmp1 = m_leftOperand[i];
-            std::cout << "Xpr::operator[]: m_leftOperand[" << static_cast<uint32_t>(i) << "] = " << tmp1 << std::endl;
-            std::cout << "Xpr::operator[]: evaluating m_rightOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
-            const auto& tmp2 = m_rightOperand[i];
-            std::cout << "Xpr::operator[]: m_rightOperand[" << static_cast<uint32_t>(i) << "] = " << tmp2 << std::endl;
+            //std::cout << "Xpr::operator[]: evaluating m_leftOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
+            //const auto& tmp1 = m_leftOperand[i];
+            //std::cout << "Xpr::operator[]: m_leftOperand[" << static_cast<uint32_t>(i) << "] = " << tmp1 << std::endl;
+            //std::cout << "Xpr::operator[]: evaluating m_rightOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
+            //const auto& tmp2 = m_rightOperand[i];
+            //std::cout << "Xpr::operator[]: m_rightOperand[" << static_cast<uint32_t>(i) << "] = " << tmp2 << std::endl;
 
             return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
         }
@@ -289,14 +289,14 @@ namespace alpaka::lockstep
         constexpr auto lanes = laneCount<T_Elem>;
         constexpr auto vectorLoops = lengthOfVectors/lanes;
 
-        std::cout << "evaluateExpression: running " << vectorLoops << " vectorLoops and " << (lengthOfVectors - vectorLoops*lanes) << " scalar loops." << std::endl;
+        //std::cout << "evaluateExpression: running " << vectorLoops << " vectorLoops and " << (lengthOfVectors - vectorLoops*lanes) << " scalar loops." << std::endl;
 
         for(std::size_t i = 0u; i<vectorLoops; ++i){
-            std::cout << "evaluateExpression: starting vectorLoop " << i << std::endl;
+            //std::cout << "evaluateExpression: starting vectorLoop " << i << std::endl;
             //uses the operator[] that returns const Pack_t
             xpr[SimdLookupIndex<T_Elem>(i)];
 
-            std::cout << "evaluateExpression: finished vectorLoop " << i << std::endl;
+            //std::cout << "evaluateExpression: finished vectorLoop " << i << std::endl;
         }
         for(std::size_t i = vectorLoops*lanes; i<lengthOfVectors; ++i){
             //uses the operator[] that returns const T_Elem &
