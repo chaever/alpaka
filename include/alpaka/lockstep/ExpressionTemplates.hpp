@@ -108,6 +108,18 @@ namespace alpaka::lockstep
             using LeftArg_t = T const;
             using RightArg_t = T const;
         };
+
+        //converts the righthand container operand to an expression if that is needed
+        template<typename T_Other, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
+        static decltype(auto) makeRightXprFromContainer(T_Other other){
+            //additions right operand is only read
+            return ReadLeafXpr(other);
+        }
+
+        template<typename T_Other, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
+        static decltype(auto) makeRightXprFromContainer(T_Other other){
+            return other;
+        }
     };
 
     struct Assignment{
@@ -122,6 +134,18 @@ namespace alpaka::lockstep
             using LeftArg_t = T;
             using RightArg_t = T const;
         };
+
+        //converts the righthand container operand to an expression if that is needed
+        template<typename T_Other, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
+        static decltype(auto) makeRightXprFromContainer(T_Other other){
+            //additions right operand is only read
+            return ReadLeafXpr(other);
+        }
+
+        template<typename T_Other, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
+        static decltype(auto) makeRightXprFromContainer(T_Other other){
+            return other;
+        }
     };
 
     //shortcuts
@@ -162,17 +186,12 @@ namespace alpaka::lockstep
         }
 
         //used if T_Other is already an expression
-        template<typename T_Other, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
+        template<typename T_Other>
         constexpr auto operator+(T_Other const & other) const
         {
-            return Xpr<Addition, ThisXpr_t, T_Other>(*this, other);
-        }
-
-        //used if T_Other is not an expression, wraps other in a LeafExpression
-        template<typename T_Other, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        constexpr auto operator+(T_Other const & other) const
-        {
-            return Xpr<Addition, ThisXpr_t, T_Other>(*this, ReadLeafXpr(other));
+            using Op = Addition;
+            auto rightXpr = Op::makeRightXprFromContainer(other);
+            return Xpr<Op, ThisXpr_t, decltype(rightXpr)>(*this, rightXpr);
         }
     };
 
@@ -204,17 +223,12 @@ namespace alpaka::lockstep
         }
 
         //used if T_Other is already an expression
-        template<typename T_Other, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
+        template<typename T_Other>
         constexpr decltype(auto) operator=(T_Other const & other) const
         {
-            return Xpr<Assignment, ThisXpr_t, T_Other>(*this, other);
-        }
-
-        //used if T_Other is not an expression, wraps other in a LeafExpression
-        template<typename T_Other, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        constexpr decltype(auto) operator=(T_Other const & other) const
-        {
-            return Xpr<Assignment, ThisXpr_t, T_Other>(*this, ReadLeafXpr(other));
+            using Op = Assignment;
+            auto rightXpr = Op::makeRightXprFromContainer(other);
+            return Xpr<Op, ThisXpr_t, decltype(rightXpr)>(*this, rightXpr);
         }
     };
 
@@ -249,31 +263,21 @@ namespace alpaka::lockstep
         }
 
         //used if T_Other is already an expression
-        template<typename T_Other, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
+        template<typename T_Other>
         constexpr decltype(auto) operator+(T_Other const & other) const
         {
-            return Xpr<Addition, ThisXpr_t, T_Other>(*this, other);
-        }
-
-        //used if T_Other is not an expression, wraps other in a LeafExpression
-        template<typename T_Other, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        constexpr decltype(auto) operator+(T_Other const & other) const
-        {
-            return Xpr<Addition, ThisXpr_t, T_Other>(*this, ReadLeafXpr(other));
+            using Op = Addition;
+            auto rightXpr = Op::makeRightXprFromContainer(other);
+            return Xpr<Op, ThisXpr_t, decltype(rightXpr)>(*this, rightXpr);
         }
 
         //used if T_Other is already an expression
-        template<typename T_Other, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
+        template<typename T_Other>
         constexpr decltype(auto) operator=(T_Other const & other) const
         {
-            return Xpr<Assignment, ThisXpr_t, T_Other>(*this, other);
-        }
-
-        //used if T_Other is not an expression, wraps other in a LeafExpression
-        template<typename T_Other, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        constexpr decltype(auto) operator=(T_Other const & other) const
-        {
-            return Xpr<Assignment, ThisXpr_t, T_Other>(*this, ReadLeafXpr(other));
+            using Op = Assignment;
+            auto rightXpr = Op::makeRightXprFromContainer(other);
+            return Xpr<Op, ThisXpr_t, decltype(rightXpr)>(*this, rightXpr);
         }
     };
 
