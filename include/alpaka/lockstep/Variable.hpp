@@ -38,20 +38,33 @@ namespace alpaka
 
         namespace detail
         {
-
             template<typename T_Idx>
             struct IndexOperator{
-
                 template<typename T_Elem>
-                static T_Elem& eval(T_Idx idx, T_Elem* const ptr)
+                static T_Elem& eval(T_Idx const idx, T_Elem* const ptr)
                 {
                     return ptr[idx];
                 }
 
                 template<typename T_Elem>
-                static const T_Elem& eval(T_Idx idx, T_Elem const * const ptr)
+                static T_Elem const& eval(T_Idx const idx, T_Elem const * const ptr)
                 {
                     return ptr[idx];
+                }
+            };
+
+            template<>
+            struct IndexOperator<lockstep::Idx>{
+                template<typename T_Elem>
+                static T_Elem& eval(lockstep::Idx const idx, T_Elem* const ptr)
+                {
+                    return ptr[idx.getWorkerElemIdx()];
+                }
+
+                template<typename T_Elem>
+                static T_Elem const& eval(lockstep::Idx const idx, T_Elem const * const ptr)
+                {
+                    return ptr[idx.getWorkerElemIdx()];
                 }
             };
 
@@ -60,7 +73,7 @@ namespace alpaka
             template<typename T_Type>
             struct IndexOperator<SimdLookupIndex<T_Type>>{
 
-                static const Pack_t<T_Type> eval(SimdLookupIndex<T_Type> idx, T_Type const * const ptr)
+                static const Pack_t<T_Type> eval(SimdLookupIndex<T_Type> const idx, T_Type const * const ptr)
                 {
                     return SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));;
                 }
@@ -117,31 +130,27 @@ namespace alpaka
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Variable& operator=(Variable&&) = default;
 
             //extend Variable to allow Xpr assignment
+            ///TODO remove this later
             template<typename T_Left, typename T_Right, typename T_Functor>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::Xpr<T_Left, T_Right, T_Functor> const& xpr) {
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::Xpr<T_Functor, T_Left, T_Right> xpr) {
 
                 constexpr auto lanes = laneCount<T_Type>;
                 constexpr auto vectorLoops = T_Config::maxIndicesPerWorker/lanes;
+
+                std::cout << "Variable::operator= : running " << vectorLoops << " vectorLoops and " << (T_Config::maxIndicesPerWorker - vectorLoops*lanes) << " scalar loops." << std::endl;
 
                 //get pointer to start of internal data storage
                 T_Type* ptr = BaseArray::data();
 
                 for(std::size_t i = 0u; i<vectorLoops; ++i, ptr+=lanes){
-                    //uses the getValueAtIndex that returns Pack_t
-                    SimdInterface_t<T_Type>::storeUnaligned(xpr.getValueAtIndex(SimdLookupIndex<T_Type>(i)), ptr);
+                    //uses the operator[] that returns const Pack_t
+                    SimdInterface_t<T_Type>::storeUnaligned(xpr[SimdLookupIndex<T_Type>(i)], ptr);
                 }
                 for(std::size_t i = vectorLoops*lanes; i<T_Config::maxIndicesPerWorker; ++i, ++ptr){
-                    //uses the getValueAtIndex that returns T_Type
-                    *ptr = xpr.getValueAtIndex(i);
+                    //uses the operator[] that returns const T_Type &
+                    *ptr = xpr[i];
                 }
                 return *this;
-            }
-
-            //defines Variable + {Variable or Xpr}
-            template<typename T_Other>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other) const {
-                using ThisVar_t = Variable<T_Type, T_Config>;
-                return Xpr<ThisVar_t, T_Other, Addition>(*this, other);
             }
 
             /** get element for the worker
@@ -151,29 +160,37 @@ namespace alpaka
              *
              * @{
              */
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::const_reference operator[](Idx const idx) const
+            template<typename T_Idx, std::enable_if_t<!std::is_integral_v<T_Idx>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto& operator[](T_Idx const idx)
             {
-                return BaseArray::operator[](idx.getWorkerElemIdx());
+                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
+            }
+            template<typename T_Idx, std::enable_if_t<!std::is_integral_v<T_Idx>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto const& operator[](T_Idx const idx) const
+            {
+                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::reference operator[](Idx const idx)
-            {
-                return BaseArray::operator[](idx.getWorkerElemIdx());
-            }
             /** @} */
 
+            template<typename T>
+            friend class ReadLeafXpr;
+
+            template<typename T>
+            friend class WriteLeafXpr;
+
+            template<typename T_Functor, typename T_Left, typename T_Right>
+            friend class Xpr;
+
         private:
-
-            //give Xpr::getValueAtIndex() access to this classes getValueAtIndex()
-            template<typename T_Left, typename T_Right, typename T_Functor>
-            template<typename T_Idx>
-            friend constexpr const auto lockstep::Xpr<T_Left, T_Right, T_Functor>::getValueAtIndex(T_Idx) const;
-
-            //used by alpaka::lockstep::Xpr for the evaluation of Expression objects
-            template<typename T_Idx>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE const auto getValueAtIndex(T_Idx const idx) const
+            template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto& operator[](T_Idx const idx)
             {
-                //std::cout << "Variable::getValueAtIndex(" << std::setw(4) << static_cast<uint32_t>(idx) << "): returned " << detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data()) << std::endl;
+                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
+            }
+            template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto const& operator[](T_Idx const idx) const
+            {
                 return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
             }
 
