@@ -130,11 +130,14 @@ namespace alpaka
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Variable& operator=(Variable&&) = default;
 
             //extend Variable to allow Xpr assignment
+            ///TODO remove this later
             template<typename T_Left, typename T_Right, typename T_Functor>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator=(lockstep::ReadXpr<T_Functor, T_Left, T_Right> const& xpr) {
 
                 constexpr auto lanes = laneCount<T_Type>;
                 constexpr auto vectorLoops = T_Config::maxIndicesPerWorker/lanes;
+
+                std::cout << "Variable::operator= : running " << vectorLoops << " vectorLoops and " << (T_Config::maxIndicesPerWorker - vectorLoops*lanes) << " scalar loops." << std::endl;
 
                 //get pointer to start of internal data storage
                 T_Type* ptr = BaseArray::data();
