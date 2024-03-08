@@ -14,6 +14,9 @@ namespace alpaka::lockstep
     #define SIMD_EVAL_F operator()
 #endif
 
+    template<typename T_Type, typename T_Config>
+    struct Variable;
+
     namespace detail
     {
         template<typename T_Idx>
@@ -93,7 +96,7 @@ namespace alpaka::lockstep
 
         //allows making an expression from CtxVariable
         template<typename T_Config>
-        ReadLeafXpr(lockstep::Variable<T, T_Config> const& v) : m_source(v[lockstep::Idx(0,0)])
+        ReadLeafXpr(typename lockstep::Variable<T, T_Config> const& v) : m_source(v[0u])
         {
         }
 
@@ -126,7 +129,7 @@ namespace alpaka::lockstep
 
         //allows making an expression from CtxVariable
         template<typename T_Config>
-        WriteLeafXpr(lockstep::Variable<T, T_Config> & v) : m_dest(v[lockstep::Idx(0,0)])
+        WriteLeafXpr(typename lockstep::Variable<T, T_Config> & v) : m_dest(v[0u])
         {
         }
 
@@ -158,9 +161,9 @@ namespace alpaka::lockstep
         using ThisXpr_t = ReadXpr<T_Functor, T_Left, T_Right>;
 
         template<typename T_Idx>
-        constexpr auto const getValueAtIndex(T_Idx const i) const
+        constexpr auto const& operator[](T_Idx const i) const
         {
-            return T_Functor::SIMD_EVAL_F(m_leftOperand.getValueAtIndex(i), m_rightOperand.getValueAtIndex(i));
+            return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
         }
 
         template<typename T_Other>
@@ -187,11 +190,11 @@ namespace alpaka::lockstep
         using ThisXpr_t = WriteableXpr<T_Functor, T_Left, T_Right>;
 
         template<typename T_Idx>
-        constexpr auto const getValueAtIndex(T_Idx const i) const
+        constexpr auto & operator[](T_Idx const i) const
         {
             //operator[] returns reference, which is then assignable
             //the cast transforms any SimdLookupIndices into ints
-            return T_Functor::SIMD_EVAL_F(m_leftOperand.getValueAtIndex(i), m_rightOperand.getValueAtIndex(i));
+            return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
         }
 
         template<typename T_Other>

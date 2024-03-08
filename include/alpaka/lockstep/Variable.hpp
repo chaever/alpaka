@@ -38,20 +38,33 @@ namespace alpaka
 
         namespace detail
         {
-
             template<typename T_Idx>
             struct IndexOperator{
-
                 template<typename T_Elem>
-                static T_Elem& eval(T_Idx idx, T_Elem* const ptr)
+                static T_Elem& eval(T_Idx const idx, T_Elem* const ptr)
                 {
                     return ptr[idx];
                 }
 
                 template<typename T_Elem>
-                static T_Elem const& eval(T_Idx idx, T_Elem const * const ptr)
+                static T_Elem const& eval(T_Idx const idx, T_Elem const * const ptr)
                 {
                     return ptr[idx];
+                }
+            };
+
+            template<>
+            struct IndexOperator<lockstep::Idx>{
+                template<typename T_Elem>
+                static T_Elem& eval(lockstep::Idx const idx, T_Elem* const ptr)
+                {
+                    return ptr[idx.getWorkerElemIdx()];
+                }
+
+                template<typename T_Elem>
+                static T_Elem const& eval(lockstep::Idx const idx, T_Elem const * const ptr)
+                {
+                    return ptr[idx.getWorkerElemIdx()];
                 }
             };
 
@@ -60,7 +73,7 @@ namespace alpaka
             template<typename T_Type>
             struct IndexOperator<SimdLookupIndex<T_Type>>{
 
-                static const Pack_t<T_Type> eval(SimdLookupIndex<T_Type> idx, T_Type const * const ptr)
+                static const Pack_t<T_Type> eval(SimdLookupIndex<T_Type> const idx, T_Type const * const ptr)
                 {
                     return SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));;
                 }
@@ -127,12 +140,12 @@ namespace alpaka
                 T_Type* ptr = BaseArray::data();
 
                 for(std::size_t i = 0u; i<vectorLoops; ++i, ptr+=lanes){
-                    //uses the getValueAtIndex that returns Pack_t
-                    SimdInterface_t<T_Type>::storeUnaligned(xpr.getValueAtIndex(SimdLookupIndex<T_Type>(i)), ptr);
+                    //uses the operator[] that returns Pack_t
+                    SimdInterface_t<T_Type>::storeUnaligned(xpr[SimdLookupIndex<T_Type>(i)], ptr);
                 }
                 for(std::size_t i = vectorLoops*lanes; i<T_Config::maxIndicesPerWorker; ++i, ++ptr){
-                    //uses the getValueAtIndex that returns T_Type
-                    *ptr = xpr.getValueAtIndex(i);
+                    //uses the operator[] that returns T_Type
+                    *ptr = xpr[i];
                 }
                 return *this;
             }
@@ -151,26 +164,39 @@ namespace alpaka
              *
              * @{
              */
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::const_reference operator[](Idx const idx) const
-            {
-                return BaseArray::operator[](idx.getWorkerElemIdx());
-            }
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::reference operator[](Idx const idx)
-            {
-                return BaseArray::operator[](idx.getWorkerElemIdx());
-            }
-            /** @} */
-
-
-            //used by alpaka::lockstep::ReadXpr for the evaluation of Expression objects
-            template<typename T_Idx>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto getValueAtIndex(T_Idx const idx)
+            template<typename T_Idx, std::enable_if_t<!std::is_integral_v<T_Idx>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto& operator[](T_Idx const idx)
             {
                 return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
             }
-            template<typename T_Idx>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE const auto getValueAtIndex(T_Idx const idx) const
+            template<typename T_Idx, std::enable_if_t<!std::is_integral_v<T_Idx>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto const& operator[](T_Idx const idx) const
+            {
+                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
+            }
+
+            /** @} */
+
+            template<typename T>
+            friend class ReadLeafXpr;
+
+            template<typename T>
+            friend class WriteLeafXpr;
+
+            template<typename T_Functor, typename T_Left, typename T_Right>
+            friend class ReadXpr;
+
+            template<typename T_Functor, typename T_Left, typename T_Right>
+            friend class WriteableXpr;
+
+        private:
+            template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto& operator[](T_Idx const idx)
+            {
+                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
+            }
+            template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto const& operator[](T_Idx const idx) const
             {
                 return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
             }
