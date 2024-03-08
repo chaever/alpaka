@@ -56,8 +56,8 @@ namespace alpaka
                 return domElemIdx;
             }
 
-            template<typename T_Idx>
-            friend struct detail::IndexOperator;
+            template<typename T_Type, typename T_Config>
+            friend struct Variable;
 
         private:
             /** N-th element the worker is processing */

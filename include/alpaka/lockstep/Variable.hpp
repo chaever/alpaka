@@ -36,39 +36,6 @@ namespace alpaka
         template<typename T_Worker, typename T_Config>
         class ForEach;
 
-        namespace detail
-        {
-            template<typename T_Idx>
-            struct IndexOperator{
-                template<typename T_Elem>
-                static T_Elem& eval(T_Idx const idx, T_Elem* const ptr)
-                {
-                    return ptr[idx];
-                }
-
-                template<typename T_Elem>
-                static T_Elem const& eval(T_Idx const idx, T_Elem const * const ptr)
-                {
-                    return ptr[idx];
-                }
-            };
-
-            template<>
-            struct IndexOperator<lockstep::Idx>{
-                template<typename T_Elem>
-                static T_Elem& eval(lockstep::Idx const idx, T_Elem* const ptr)
-                {
-                    return ptr[idx.getWorkerElemIdx()];
-                }
-
-                template<typename T_Elem>
-                static T_Elem const& eval(lockstep::Idx const idx, T_Elem const * const ptr)
-                {
-                    return ptr[idx.getWorkerElemIdx()];
-                }
-            };
-        } // namespace detail
-
         /** Variable used by virtual worker
          *
          * This object is designed to hold context variables in lock step
@@ -142,24 +109,22 @@ namespace alpaka
                 return *this;
             }
 
-            /** get element for the worker
+             /** get element for the worker
              *
              * @tparam T_Idx any type which can be implicit casted to an integral type
              * @param idx index within the array
              *
              * @{
              */
-            template<typename T_Idx, std::enable_if_t<!std::is_integral_v<T_Idx>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto& operator[](T_Idx const idx)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::const_reference operator[](Idx const idx) const
             {
-                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
-            }
-            template<typename T_Idx, std::enable_if_t<!std::is_integral_v<T_Idx>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto const& operator[](T_Idx const idx) const
-            {
-                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
+                return BaseArray::operator[](idx.getWorkerElemIdx());
             }
 
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::reference operator[](Idx const idx)
+            {
+                return BaseArray::operator[](idx.getWorkerElemIdx());
+            }
             /** @} */
 
             template<typename T>
@@ -172,12 +137,12 @@ namespace alpaka
             template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto& operator[](T_Idx const idx)
             {
-                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
+                return BaseArray::data()[idx];
             }
             template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto const& operator[](T_Idx const idx) const
             {
-                return detail::IndexOperator<T_Idx>::eval(idx, BaseArray::data());
+                return BaseArray::data()[idx];
             }
 
         };
