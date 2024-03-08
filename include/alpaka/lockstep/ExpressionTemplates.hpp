@@ -72,6 +72,13 @@ namespace alpaka::lockstep
             //uses T_Left::operator+(T_Right)
             return left+right;
         }
+
+        template<typename T>
+        struct OperandXprTrait{
+            //left & right parent expressions shall both be const
+            using LeftArg_t = T const;
+            using RightArg_t = T const;
+        };
     };
 
     struct Assignment{
@@ -79,7 +86,20 @@ namespace alpaka::lockstep
         static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){
             return detail::AssignmentTrait<T_Left, T_Right>::SIMD_EVAL_F(left, right);
         }
+
+        template<typename T>
+        struct OperandXprTrait{
+            //right parent expression is const, left is assignee and therefore not const
+            using LeftArg_t = T;
+            using RightArg_t = T const;
+        };
     };
+
+    //shortcuts
+    template<typename T_Functor, typename T>
+    using XprArgLeft_t = typename T_Functor::template OperandXprTrait<T>::LeftArg_t;
+    template<typename T_Functor, typename T>
+    using XprArgRight_t = typename T_Functor::template OperandXprTrait<T>::LeftArg_t;
 
     //forward declarations
     template<typename T_Functor, typename T_Left, typename T_Right>
@@ -158,17 +178,22 @@ namespace alpaka::lockstep
         }
     };
 
+
     //const left operand, cannot assign
     template<typename T_Functor, typename T_Left, typename T_Right>
     class ReadXpr{
-        T_Left const m_leftOperand;
-        T_Right const m_rightOperand;
+
+        //left&right with constness added as required by the Functor
+        using T_Left_const_t = XprArgLeft_t<T_Functor, T_Left>;
+        using T_Right_const_t = XprArgRight_t<T_Functor, T_Right>;
+        using ThisXpr_t = ReadXpr<T_Functor, T_Left, T_Right>;
+
+        T_Left_const_t m_leftOperand;
+        T_Right_const_t m_rightOperand;
     public:
-        ReadXpr(T_Left const left, T_Right const right):m_leftOperand(left), m_rightOperand(right)
+        ReadXpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right)
         {
         }
-
-        using ThisXpr_t = ReadXpr<T_Functor, T_Left, T_Right>;
 
         template<typename T_Idx>
         constexpr decltype(auto) operator[](T_Idx const i) const
@@ -197,14 +222,18 @@ namespace alpaka::lockstep
     //non-const left operand to write to
     template<typename T_Functor, typename T_Left, typename T_Right>
     class WriteableXpr{
-        T_Left m_leftOperand;
-        T_Right const m_rightOperand;
+
+        //left&right with constness added as required by the Functor
+        using T_Left_const_t = XprArgLeft_t<T_Functor, T_Left>;
+        using T_Right_const_t = XprArgRight_t<T_Functor, T_Right>;
+        using ThisXpr_t = WriteableXpr<T_Functor, T_Left, T_Right>;
+
+        T_Left_const_t m_leftOperand;
+        T_Right_const_t m_rightOperand;
     public:
-        WriteableXpr(T_Left left, T_Right const right):m_leftOperand(left), m_rightOperand(right)
+        WriteableXpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right)
         {
         }
-
-        using ThisXpr_t = WriteableXpr<T_Functor, T_Left, T_Right>;
 
         template<typename T_Idx>
         constexpr decltype(auto) operator[](T_Idx const i) const
