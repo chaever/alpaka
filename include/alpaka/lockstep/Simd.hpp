@@ -31,21 +31,16 @@ namespace alpaka::lockstep
         using Elem_t = T_Elem;
         using Pack_t = std::experimental::simd<T_Elem, std::experimental::simd_abi::native<T_Elem>>;
 
-        inline static constexpr std::size_t laneCount = Pack_t::size;
+        inline static constexpr std::size_t laneCount = Pack_t::size();
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const Elem_t* const mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(Elem_t const * const mem) -> Pack_t
         {
-            return Pack_t(mem);
+            return Pack_t(mem, std::experimental::element_aligned);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, Elem_t *const mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, Elem_t * const mem)
         {
-            t.copy_to(mem);
-        }
-
-        template<typename T_Other>
-        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC operator+(T_Other const & other){
-            return *this + other;
+            t.copy_to(mem, std::experimental::element_aligned);
         }
     };
 
@@ -87,7 +82,7 @@ namespace alpaka::lockstep
 
     //provides Information about the pack framework the user selected via CMake
     struct selectedSIMDInfo{
-#if defined COMPILE_OPTION_FROM_CMAKE_1
+#if 1 || defined COMPILE_OPTION_FROM_CMAKE_1
         template<typename T>
         using simdNonBool_t = std::experimental::simd<T>;
         //provides as many booleans as simdNonBool_t<T> can hold Ts
