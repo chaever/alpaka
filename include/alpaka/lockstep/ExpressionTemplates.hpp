@@ -180,7 +180,6 @@ namespace alpaka::lockstep
     public:
         T_Foreach const& m_forEach;
 
-        static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
         static constexpr bool assumeOneWorker = T_assumeOneWorker;
 
         //takes a ptr that points to start of domain
@@ -223,7 +222,6 @@ namespace alpaka::lockstep
     public:
         T_Foreach const& m_forEach;
 
-        static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
         static constexpr bool assumeOneWorker = T_assumeOneWorker;
 
         //takes a ptr that points to start of domain
@@ -268,9 +266,7 @@ namespace alpaka::lockstep
     public:
         T_Foreach const& m_forEach;
 
-        static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
-
-        Xpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right), m_forEach(decltype(left)::simdWidthIsUnspecified ? right.m_forEach : left.m_forEach )
+        Xpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right), m_forEach(left.m_forEach)
         {
         }
 
