@@ -42,53 +42,6 @@ namespace alpaka::lockstep
 
     namespace detail
     {
-        template<bool T_assumeOneWorker, typename T_Idx, typename T_Worker>
-        struct IndexOperatorLeafRead;
-
-        //specialization for SIMD-XprLookupIndex
-        //returns only const Packs because they are copies
-        template<bool T_assumeOneWorker, typename T_Elem, typename T_Worker>
-        struct IndexOperatorLeafRead<T_assumeOneWorker, SimdLookupIndex<T_Elem>, T_Worker>{
-
-            static typename SimdLookupIndex<T_Elem>::Pack_type const eval(SimdLookupIndex<T_Elem> idx, T_Worker const& worker, T_Elem const * const ptr)
-            {
-                //std::cout << "IndexOperatorLeafRead<XprLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
-                //const auto& tmp = SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
-                //std::cout << "IndexOperatorLeafRead<XprLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
-
-                return SimdInterface_t<T_Elem>::loadUnaligned(ptr + laneCount<T_Elem> * worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : T_Worker::numWorkers) * static_cast<uint32_t>(idx));
-            }
-        };
-
-        template<bool T_assumeOneWorker, typename T_Elem, typename T_Worker>
-        struct IndexOperatorLeafRead<T_assumeOneWorker, ScalarLookupIndex<T_Elem>, T_Worker>{
-
-            static T_Elem const& eval(ScalarLookupIndex<T_Elem> idx, T_Worker const& worker, T_Elem const * const ptr)
-            {
-                //std::cout << "IndexOperatorLeafRead<uint32_t>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
-
-                return ptr[worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : T_Worker::numWorkers) * static_cast<uint32_t>(idx)];
-            }
-        };
-
-        template<typename T_Left, typename T_Right>
-        struct AssignmentTrait{
-            //assign scalars
-            static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){
-                //uses T_Left::operator=(T_Right)
-                return left=right;
-            }
-        };
-
-        template<typename T_Left>
-        struct AssignmentTrait<T_Left, Pack_t<T_Left>>{
-            //assign packs
-            static constexpr const auto SIMD_EVAL_F(T_Left& left, Pack_t<T_Left> const& right){
-                SimdInterface_t<T_Left>::storeUnaligned(right, &left);
-                return right;//return right to preserve semantics of operator=
-            }
-        };
-
         template<typename T>
         struct IsXpr{
             static constexpr bool value = false;
@@ -140,9 +93,18 @@ namespace alpaka::lockstep
     };
 
     struct Assignment{
-        template<typename T_Left, typename T_Right>
+        template<typename T_Left, typename T_Right, std::enable_if_t< std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
+        static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const right){
+            std::cout << "Assignment<Pack>::operator[]: before writing " << right[0] << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
+            SimdInterface_t<T_Left>::storeUnaligned(right, &left);
+            std::cout << "Assignment<Pack>::operator[]: after  writing " << right[0] << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
+            return right;
+        }
+        template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
         static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){
-            return detail::AssignmentTrait<T_Left, T_Right>::SIMD_EVAL_F(left, right);
+            std::cout << "Assignment<Scalar>::operator[]: before writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
+            return left=right;
+            std::cout << "Assignment<Scalar>::operator[]: after  writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
         }
 
         template<typename T>
@@ -193,15 +155,26 @@ namespace alpaka::lockstep
         {
         }
 
-        //returns const ref, since Leaves are not meant to be assigned to
-        template<typename T_Idx>
-        decltype(auto) operator[](T_Idx const idx) const
+        template<typename T_Elem>
+        decltype(auto) operator[](SimdLookupIndex<T_Elem> const idx) const
         {
-            //std::cout << "ReadLeafXpr::operator[]: evaluating IndexOperatorLeafRead::eval(" << static_cast<uint32_t>(idx) << ")..." << std::endl;
-            //const auto& tmp = detail::IndexOperatorLeafRead<T_Idx>::eval(idx, &m_source);
-            //std::cout << "ReadLeafXpr::operator[]: IndexOperatorLeafRead::eval(" << static_cast<uint32_t>(idx) << ") = " << tmp << std::endl;
+            auto* tmpPtr = &m_source + laneCount<T_Elem> * m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
+            std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << T_assumeOneWorker << ", SimdLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " , base is " << reinterpret_cast<uint64_t>(&m_source) << std::endl;
+            const auto& tmp = SimdInterface_t<T_Elem>::loadUnaligned(tmpPtr);
+            std::cout << "ReadLeafXpr::operator[]("<<static_cast<uint32_t>(idx)<<")[0] = " << tmp[0] << std::endl;
 
-            return detail::IndexOperatorLeafRead<assumeOneWorker, T_Idx, std::decay_t<decltype(m_forEach.getWorker())> >::eval(idx, m_forEach.getWorker(), &m_source);
+            return SimdInterface_t<T_Elem>::loadUnaligned(&m_source + laneCount<T_Elem> * m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx));
+        }
+
+        template<typename T_Elem>
+        decltype(auto) operator[](ScalarLookupIndex<T_Elem> const idx) const
+        {
+            auto* tmpPtr = &m_source + m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
+            std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << T_assumeOneWorker << ", ScalarLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " , base is " << reinterpret_cast<uint64_t>(&m_source) << std::endl;
+            const auto& tmp = *tmpPtr;
+            std::cout << "ReadLeafXpr::operator[]("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
+
+            return (&m_source)[m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx)];
         }
 
         //used if T_Other is already an expression
@@ -236,11 +209,19 @@ namespace alpaka::lockstep
         }
 
         //returns ref to allow assignment
-        template<typename T_Idx>
-        auto & operator[](T_Idx const idx) const
+        template<typename T_Elem>
+        auto & operator[](ScalarLookupIndex<T_Elem> const idx) const
         {
-            //static_cast will turn XprLookupIndex into a flattened value when required
-            return (&m_dest)[static_cast<uint32_t>(idx)];
+            auto const& worker = m_forEach.getWorker();
+            return (&m_dest)[worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx)];
+        }
+
+        //returns ref to allow assignment
+        template<typename T_Elem>
+        auto & operator[](SimdLookupIndex<T_Elem> const idx) const
+        {
+            auto const& worker = m_forEach.getWorker();
+            return (&m_dest)[laneCount<T_Elem> * worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx)];
         }
 
         //used if T_Other is already an expression
