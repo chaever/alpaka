@@ -119,14 +119,13 @@ namespace alpaka::lockstep
     public:
         using Elem_type = T_Elem;
         using Pack_type = T_Elem;
-        static constexpr auto simdWidth = 1u;
 
         ScalarLookupIndex (const std::size_t idx) : m_idx(idx){}
 
         //allow conversion to flat number, but not implicitly
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit operator uint32_t() const
         {
-            return m_idx*simdWidth;
+            return m_idx;
         }
     };
 
@@ -137,14 +136,13 @@ namespace alpaka::lockstep
 
         using Elem_type = T_Elem;
         using Pack_type = Pack_t<T_Elem>;
-        static constexpr auto simdWidth = laneCount<T_Elem>;
 
         SimdLookupIndex (const std::size_t idx) : m_idx(idx){}
 
         //allow conversion to flat number, but not implicitly
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit operator uint32_t() const
         {
-            return m_idx*simdWidth;
+            return m_idx*laneCount<T_Elem>;
         }
     };
 } // namespace alpaka::lockstep
