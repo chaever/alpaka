@@ -17,54 +17,57 @@ namespace alpaka::lockstep
     //forward declarations
     template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach>
     class Xpr;
-    template<typename T_Foreach, typename T>
+    template<bool T_assumeOneWorker, typename T_Foreach, typename T>
     class ReadLeafXpr;
-    template<typename T_Foreach, typename T>
+    template<bool T_assumeOneWorker, typename T_Foreach, typename T>
     class WriteLeafXpr;
 
     template<typename T_Type, typename T_Config>
     struct Variable;
 
+    template<typename T_Worker, typename T_Config>
+    class ForEach;
+
+    template<typename T_ForEach, typename T_Elem>
+    auto load(T_ForEach const& forEach, T_Elem const * const ptr);
+
+    template<typename T_Worker, typename T_Elem, typename T_Config>
+    auto load(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> const& ctxVar);
+
+    template<typename T_ForEach, typename T_Elem>
+    auto store(T_ForEach const& forEach, T_Elem * const ptr);
+
+    template<typename T_Worker, typename T_Elem, typename T_Config>
+    auto store(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> & ctxVar);
+
     namespace detail
     {
-        template<typename T_Idx>
+        template<bool T_assumeOneWorker, typename T_Idx, typename T_Worker>
         struct IndexOperatorLeafRead;
-
-        template<typename T_Idx>
-        struct IndexOperatorLeafRead{
-
-            template<typename T_Elem>
-            static T_Elem const& eval(T_Idx idx, T_Elem const * const ptr)
-            {
-                //std::cout << "IndexOperatorLeafRead<uint32_t>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
-
-                return ptr[idx];
-            }
-        };
 
         //specialization for SIMD-XprLookupIndex
         //returns only const Packs because they are copies
-        template<typename T_Elem>
-        struct IndexOperatorLeafRead<SimdLookupIndex<T_Elem>>{
+        template<bool T_assumeOneWorker, typename T_Elem, typename T_Worker>
+        struct IndexOperatorLeafRead<T_assumeOneWorker, SimdLookupIndex<T_Elem>, T_Worker>{
 
-            static typename SimdLookupIndex<T_Elem>::Pack_type const eval(SimdLookupIndex<T_Elem> idx, T_Elem const * const ptr)
+            static typename SimdLookupIndex<T_Elem>::Pack_type const eval(SimdLookupIndex<T_Elem> idx, T_Worker const& worker, T_Elem const * const ptr)
             {
                 //std::cout << "IndexOperatorLeafRead<XprLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
                 //const auto& tmp = SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
                 //std::cout << "IndexOperatorLeafRead<XprLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
 
-                return SimdInterface_t<T_Elem>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
+                return SimdInterface_t<T_Elem>::loadUnaligned(ptr + laneCount<T_Elem> * worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : T_Worker::numWorkers) * static_cast<uint32_t>(idx));
             }
         };
 
-        template<typename T_Elem>
-        struct IndexOperatorLeafRead<ScalarLookupIndex<T_Elem>>{
+        template<bool T_assumeOneWorker, typename T_Elem, typename T_Worker>
+        struct IndexOperatorLeafRead<T_assumeOneWorker, ScalarLookupIndex<T_Elem>, T_Worker>{
 
-            static T_Elem const& eval(ScalarLookupIndex<T_Elem> idx, T_Elem const * const ptr)
+            static T_Elem const& eval(ScalarLookupIndex<T_Elem> idx, T_Worker const& worker, T_Elem const * const ptr)
             {
                 //std::cout << "IndexOperatorLeafRead<uint32_t>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
 
-                return ptr[static_cast<uint32_t>(idx)];
+                return ptr[worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : T_Worker::numWorkers) * static_cast<uint32_t>(idx)];
             }
         };
 
@@ -96,13 +99,13 @@ namespace alpaka::lockstep
             static constexpr bool value = true;
         };
 
-        template<typename T, typename T_Foreach>
-        struct IsXpr<ReadLeafXpr<T, T_Foreach> >{
+        template<bool T_assumeOneWorker, typename T_Foreach, typename T>
+        struct IsXpr<ReadLeafXpr<T_assumeOneWorker, T, T_Foreach> >{
             static constexpr bool value = true;
         };
 
-        template<typename T, typename T_Foreach>
-        struct IsXpr<WriteLeafXpr<T, T_Foreach> >{
+        template<bool T_assumeOneWorker, typename T_Foreach, typename T>
+        struct IsXpr<WriteLeafXpr<T_assumeOneWorker, T, T_Foreach> >{
             static constexpr bool value = true;
         };
 
@@ -126,8 +129,8 @@ namespace alpaka::lockstep
         //converts the righthand container operand to an expression if that is needed
         template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
         static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
-            //additions right operand is only read
-            return ReadLeafXpr(forEach, other);
+            //additions right operand is read-only
+            return load(forEach, other);
         }
 
         template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
@@ -152,8 +155,8 @@ namespace alpaka::lockstep
         //converts the righthand container operand to an expression if that is needed
         template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
         static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
-            //additions right operand is only read
-            return ReadLeafXpr(forEach, other);
+            //assignmnets right operand is read-only
+            return load(forEach, other);
         }
 
         template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
@@ -171,14 +174,14 @@ namespace alpaka::lockstep
 
     //cannot be assigned to
     //can be made from pointers, or some container classes
-    template<typename T_Foreach, typename T>
+    template<bool T_assumeOneWorker, typename T_Foreach, typename T>
     class ReadLeafXpr{
         T const& m_source;
     public:
         T_Foreach const& m_forEach;
 
-        using ThisXpr_t = ReadLeafXpr<T_Foreach, T>;
         static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
+        static constexpr bool assumeOneWorker = T_assumeOneWorker;
 
         //takes a ptr that points to start of domain
         ReadLeafXpr(T_Foreach const& forEach, T const * const source) : m_source(*source), m_forEach(forEach)
@@ -199,7 +202,7 @@ namespace alpaka::lockstep
             //const auto& tmp = detail::IndexOperatorLeafRead<T_Idx>::eval(idx, &m_source);
             //std::cout << "ReadLeafXpr::operator[]: IndexOperatorLeafRead::eval(" << static_cast<uint32_t>(idx) << ") = " << tmp << std::endl;
 
-            return detail::IndexOperatorLeafRead<T_Idx>::eval(idx, &m_source);
+            return detail::IndexOperatorLeafRead<assumeOneWorker, T_Idx, std::decay_t<decltype(m_forEach.getWorker())> >::eval(idx, m_forEach.getWorker(), &m_source);
         }
 
         //used if T_Other is already an expression
@@ -208,20 +211,20 @@ namespace alpaka::lockstep
         {
             using Op = Addition;
             auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
-            return Xpr<Op, ThisXpr_t, decltype(rightXpr), T_Foreach>(*this, rightXpr);
+            return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);
         }
     };
 
     //can be assigned to
     //can be made from pointers, or some container classes
-    template<typename T_Foreach, typename T>
+    template<bool T_assumeOneWorker, typename T_Foreach, typename T>
     class WriteLeafXpr{
         T & m_dest;
     public:
         T_Foreach const& m_forEach;
 
-        using ThisXpr_t = WriteLeafXpr<T_Foreach, T>;
         static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
+        static constexpr bool assumeOneWorker = T_assumeOneWorker;
 
         //takes a ptr that points to start of domain
         WriteLeafXpr(T_Foreach const& forEach, T * const dest) : m_dest(*dest), m_forEach(forEach)
@@ -248,7 +251,7 @@ namespace alpaka::lockstep
         {
             using Op = Assignment;
             auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
-            return Xpr<Op, ThisXpr_t, decltype(rightXpr), T_Foreach>(*this, rightXpr);
+            return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);
         }
     };
 
@@ -265,7 +268,6 @@ namespace alpaka::lockstep
     public:
         T_Foreach const& m_forEach;
 
-        using ThisXpr_t = Xpr<T_Functor, T_Left, T_Right, T_Foreach>;
         static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
 
         Xpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right), m_forEach(decltype(left)::simdWidthIsUnspecified ? right.m_forEach : left.m_forEach )
@@ -291,7 +293,7 @@ namespace alpaka::lockstep
         {
             using Op = Addition;
             auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
-            return Xpr<Op, ThisXpr_t, decltype(rightXpr), T_Foreach>(*this, rightXpr);
+            return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);
         }
 
         //used if T_Other is already an expression
@@ -300,7 +302,7 @@ namespace alpaka::lockstep
         {
             using Op = Assignment;
             auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
-            return Xpr<Op, ThisXpr_t, decltype(rightXpr), T_Foreach>(*this, rightXpr);
+            return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);
         }
     };
 
@@ -327,8 +329,32 @@ namespace alpaka::lockstep
         }
     }
 
+    template<typename T_ForEach, typename T_Elem>
+    auto load(T_ForEach const& forEach, T_Elem const * const ptr){
+        static constexpr auto spacingBetweenSimdPacksOwnedByOneWorker = T_ForEach::numWorkers*laneCount<T_Elem>;
+        return ReadLeafXpr<spacingBetweenSimdPacksOwnedByOneWorker, T_ForEach, T_Elem>(forEach, ptr);
+    }
+
+    template<typename T_Worker, typename T_Elem, typename T_Config>
+    auto load(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> const& ctxVar){
+        using ForEach_t = ForEach<T_Worker, T_Config>;
+        static constexpr auto spacingBetweenSimdPacksOwnedByOneWorker = laneCount<T_Elem>;
+        return ReadLeafXpr<spacingBetweenSimdPacksOwnedByOneWorker, ForEach_t, T_Elem>(forEach, ctxVar);
+    }
+
+    template<typename T_ForEach, typename T_Elem>
+    auto store(T_ForEach const& forEach, T_Elem * const ptr){
+        static constexpr auto spacingBetweenSimdPacksOwnedByOneWorker = T_ForEach::numWorkers*laneCount<T_Elem>;
+        return WriteLeafXpr<spacingBetweenSimdPacksOwnedByOneWorker, T_ForEach, T_Elem>(forEach, ptr);
+    }
+
+    template<typename T_Worker, typename T_Elem, typename T_Config>
+    auto store(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> & ctxVar){
+        using ForEach_t = ForEach<T_Worker, T_Config>;
+        static constexpr auto spacingBetweenSimdPacksOwnedByOneWorker = laneCount<T_Elem>;
+        return WriteLeafXpr<spacingBetweenSimdPacksOwnedByOneWorker, ForEach_t, T_Elem>(forEach, ctxVar);
+    }
     ///TODO need function that returns CtxVar
     //void evalToCtxVar
-
 
 } // namespace alpaka::lockstep
