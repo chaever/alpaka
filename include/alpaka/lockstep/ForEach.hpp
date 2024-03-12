@@ -152,6 +152,7 @@ namespace alpaka
             using BaseConfig::domainSize;
             using BaseConfig::numWorkers;
             using BaseConfig::simdSize;
+            using BaseConfig::simdWidthIsUnspecified;
 
             /** constructor
              *
@@ -285,19 +286,6 @@ namespace alpaka
             /** @} */
         };
 
-        inline namespace trait
-        {
-            template<typename T_Worker, uint32_t T_domainSize, uint32_t T_simdSize = 1u>
-            struct MakeForEach
-            {
-                using type = ForEach<T_Worker, Config<T_domainSize, T_Worker::numWorkers, T_simdSize>>;
-            };
-
-            //used to default T_simdSize to 1
-            template<typename T_Worker, uint32_t T_domainSize, uint32_t T_simdSize = 1u>
-            using MakeForEach_t = typename MakeForEach<T_Worker, T_domainSize, T_simdSize>::type;
-        } // namespace trait
-
         /** Creates an executor to iterate over the given index domain.
          *
          * The executor is invoking a functor foreach index in the domain. @see ForEach
@@ -313,7 +301,7 @@ namespace alpaka
         template<uint32_t T_domainSize, typename T_Worker>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeForEach(T_Worker const& worker)
         {
-            return trait::MakeForEach_t<T_Worker, T_domainSize>(worker);
+            return ForEach<T_Worker, Config<T_domainSize, T_Worker::numWorkers>>(worker);
         }
 
         /**
@@ -323,7 +311,7 @@ namespace alpaka
         template<uint32_t T_domainSize, uint32_t T_simdSize, typename T_Worker>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeForEach(T_Worker const& worker)
         {
-            return trait::MakeForEach_t<T_Worker, T_domainSize, T_simdSize>(worker);
+            return ForEach<T_Worker, Config<T_domainSize, T_Worker::numWorkers, T_simdSize>>(worker);
         }
 
         /**@}*/

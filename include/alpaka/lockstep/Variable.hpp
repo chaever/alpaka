@@ -103,10 +103,10 @@ namespace alpaka
             }
             /** @} */
 
-            template<typename T>
+            template<typename T_Foreach, typename T>
             friend class ReadLeafXpr;
 
-            template<typename T>
+            template<typename T_Foreach, typename T>
             friend class WriteLeafXpr;
 
         private:
