@@ -159,7 +159,7 @@ namespace alpaka::lockstep
         decltype(auto) operator[](SimdLookupIndex<T_Elem> const idx) const
         {
             auto* tmpPtr = &m_source + laneCount<T_Elem> * m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
-            std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << T_assumeOneWorker << ", SimdLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " , base is " << reinterpret_cast<uint64_t>(&m_source) << std::endl;
+            std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", SimdLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
             const auto& tmp = SimdInterface_t<T_Elem>::loadUnaligned(tmpPtr);
             std::cout << "ReadLeafXpr::operator[]("<<static_cast<uint32_t>(idx)<<")[0] = " << tmp[0] << std::endl;
 
@@ -170,7 +170,7 @@ namespace alpaka::lockstep
         decltype(auto) operator[](ScalarLookupIndex<T_Elem> const idx) const
         {
             auto* tmpPtr = &m_source + m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
-            std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << T_assumeOneWorker << ", ScalarLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " , base is " << reinterpret_cast<uint64_t>(&m_source) << std::endl;
+            std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", ScalarLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
             const auto& tmp = *tmpPtr;
             std::cout << "ReadLeafXpr::operator[]("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
 
