@@ -28,6 +28,9 @@ namespace alpaka::lockstep
     namespace detail
     {
         template<typename T_Idx>
+        struct IndexOperatorLeafRead;
+
+        template<typename T_Idx>
         struct IndexOperatorLeafRead{
 
             template<typename T_Elem>
@@ -39,18 +42,29 @@ namespace alpaka::lockstep
             }
         };
 
-        //specialization for SIMD-SimdLookupIndex
+        //specialization for SIMD-XprLookupIndex
         //returns only const Packs because they are copies
-        template<typename T_Type>
-        struct IndexOperatorLeafRead<SimdLookupIndex<T_Type>>{
+        template<typename T_Elem>
+        struct IndexOperatorLeafRead<SimdLookupIndex<T_Elem>>{
 
-            static Pack_t<T_Type> const eval(SimdLookupIndex<T_Type> idx, T_Type const * const ptr)
+            static typename SimdLookupIndex<T_Elem>::Pack_type const eval(SimdLookupIndex<T_Elem> idx, T_Elem const * const ptr)
             {
-                //std::cout << "IndexOperatorLeafRead<SimdLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
+                //std::cout << "IndexOperatorLeafRead<XprLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
                 //const auto& tmp = SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
-                //std::cout << "IndexOperatorLeafRead<SimdLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
+                //std::cout << "IndexOperatorLeafRead<XprLookupIndex>::eval("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
 
-                return SimdInterface_t<T_Type>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
+                return SimdInterface_t<T_Elem>::loadUnaligned(ptr + static_cast<uint32_t>(idx));
+            }
+        };
+
+        template<typename T_Elem>
+        struct IndexOperatorLeafRead<ScalarLookupIndex<T_Elem>>{
+
+            static T_Elem const& eval(ScalarLookupIndex<T_Elem> idx, T_Elem const * const ptr)
+            {
+                //std::cout << "IndexOperatorLeafRead<uint32_t>::eval("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(ptr + static_cast<uint32_t>(idx)) << " , base is " << reinterpret_cast<uint64_t>(ptr) << std::endl;
+
+                return ptr[static_cast<uint32_t>(idx)];
             }
         };
 
@@ -166,7 +180,8 @@ namespace alpaka::lockstep
         using ThisXpr_t = ReadLeafXpr<T_Foreach, T>;
         static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
 
-        ReadLeafXpr(T_Foreach const& forEach, T const& source) : m_source(source), m_forEach(forEach)
+        //takes a ptr that points to start of domain
+        ReadLeafXpr(T_Foreach const& forEach, T const * const source) : m_source(*source), m_forEach(forEach)
         {
         }
 
@@ -208,7 +223,8 @@ namespace alpaka::lockstep
         using ThisXpr_t = WriteLeafXpr<T_Foreach, T>;
         static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
 
-        WriteLeafXpr(T_Foreach const& forEach, T & dest) : m_dest(dest), m_forEach(forEach)
+        //takes a ptr that points to start of domain
+        WriteLeafXpr(T_Foreach const& forEach, T * const dest) : m_dest(*dest), m_forEach(forEach)
         {
         }
 
@@ -222,7 +238,7 @@ namespace alpaka::lockstep
         template<typename T_Idx>
         auto & operator[](T_Idx const idx) const
         {
-            //static_cast will turn SimdLookupIndex into a flattened value when required
+            //static_cast will turn XprLookupIndex into a flattened value when required
             return (&m_dest)[static_cast<uint32_t>(idx)];
         }
 
@@ -307,7 +323,12 @@ namespace alpaka::lockstep
         }
         for(std::size_t i = vectorLoops*lanes; i<lengthOfVectors; ++i){
             //uses the operator[] that returns const T_Elem &
-            xpr[i];
+            xpr[ScalarLookupIndex<T_Elem>(i)];
         }
     }
+
+    ///TODO need function that returns CtxVar
+    //void evalToCtxVar
+
+
 } // namespace alpaka::lockstep
