@@ -15,11 +15,11 @@ namespace alpaka::lockstep
 #endif
 
     //forward declarations
-    template<typename T_Functor, typename T_Left, typename T_Right>
+    template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach>
     class Xpr;
-    template<typename T>
+    template<typename T_Foreach, typename T>
     class ReadLeafXpr;
-    template<typename T>
+    template<typename T_Foreach, typename T>
     class WriteLeafXpr;
 
     template<typename T_Type, typename T_Config>
@@ -77,18 +77,18 @@ namespace alpaka::lockstep
             static constexpr bool value = false;
         };
 
-        template<typename T_Functor, typename T_Left, typename T_Right>
-        struct IsXpr<Xpr<T_Functor, T_Left, T_Right>>{
+        template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach>
+        struct IsXpr<Xpr<T_Functor, T_Left, T_Right, T_Foreach>>{
             static constexpr bool value = true;
         };
 
-        template<typename T>
-        struct IsXpr<ReadLeafXpr<T>>{
+        template<typename T, typename T_Foreach>
+        struct IsXpr<ReadLeafXpr<T, T_Foreach> >{
             static constexpr bool value = true;
         };
 
-        template<typename T>
-        struct IsXpr<WriteLeafXpr<T>>{
+        template<typename T, typename T_Foreach>
+        struct IsXpr<WriteLeafXpr<T, T_Foreach> >{
             static constexpr bool value = true;
         };
 
@@ -110,14 +110,14 @@ namespace alpaka::lockstep
         };
 
         //converts the righthand container operand to an expression if that is needed
-        template<typename T_Other, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        static decltype(auto) makeRightXprFromContainer(T_Other const& other){
+        template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
+        static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
             //additions right operand is only read
-            return ReadLeafXpr(other);
+            return ReadLeafXpr(forEach, other);
         }
 
-        template<typename T_Other, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
-        static decltype(auto) makeRightXprFromContainer(T_Other const& other){
+        template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
+        static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
             return other;
         }
     };
@@ -136,14 +136,14 @@ namespace alpaka::lockstep
         };
 
         //converts the righthand container operand to an expression if that is needed
-        template<typename T_Other, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        static decltype(auto) makeRightXprFromContainer(T_Other const& other){
+        template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
+        static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
             //additions right operand is only read
-            return ReadLeafXpr(other);
+            return ReadLeafXpr(forEach, other);
         }
 
-        template<typename T_Other, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
-        static decltype(auto) makeRightXprFromContainer(T_Other const& other){
+        template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
+        static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
             return other;
         }
     };
@@ -157,20 +157,22 @@ namespace alpaka::lockstep
 
     //cannot be assigned to
     //can be made from pointers, or some container classes
-    template<typename T>
+    template<typename T_Foreach, typename T>
     class ReadLeafXpr{
         T const& m_source;
     public:
-        using ThisXpr_t = ReadLeafXpr<T>;
-        ///TODO maybe this class should know the size of the array it points to?
+        T_Foreach const& m_forEach;
 
-        ReadLeafXpr(T const& source) : m_source(source)
+        using ThisXpr_t = ReadLeafXpr<T_Foreach, T>;
+        static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
+
+        ReadLeafXpr(T_Foreach const& forEach, T const& source) : m_source(source), m_forEach(forEach)
         {
         }
 
         //allows making an expression from CtxVariable
         template<typename T_Config>
-        ReadLeafXpr(typename lockstep::Variable<T, T_Config> const& v) : m_source(v[0u])
+        ReadLeafXpr(T_Foreach const& forEach, typename lockstep::Variable<T, T_Config> const& v) : m_source(v[0u]), m_forEach(forEach)
         {
         }
 
@@ -190,27 +192,29 @@ namespace alpaka::lockstep
         constexpr auto operator+(T_Other const & other) const
         {
             using Op = Addition;
-            auto rightXpr = Op::makeRightXprFromContainer(other);
-            return Xpr<Op, ThisXpr_t, decltype(rightXpr)>(*this, rightXpr);
+            auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
+            return Xpr<Op, ThisXpr_t, decltype(rightXpr), T_Foreach>(*this, rightXpr);
         }
     };
 
     //can be assigned to
     //can be made from pointers, or some container classes
-    template<typename T>
+    template<typename T_Foreach, typename T>
     class WriteLeafXpr{
         T & m_dest;
     public:
-        using ThisXpr_t = WriteLeafXpr<T>;
-        ///TODO maybe this class should know the size of the array it points to?
+        T_Foreach const& m_forEach;
 
-        WriteLeafXpr(T & dest) : m_dest(dest)
+        using ThisXpr_t = WriteLeafXpr<T_Foreach, T>;
+        static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
+
+        WriteLeafXpr(T_Foreach const& forEach, T & dest) : m_dest(dest), m_forEach(forEach)
         {
         }
 
         //allows making an expression from CtxVariable
         template<typename T_Config>
-        WriteLeafXpr(typename lockstep::Variable<T, T_Config> & v) : m_dest(v[0u])
+        WriteLeafXpr(T_Foreach const& forEach, typename lockstep::Variable<T, T_Config> & v) : m_dest(v[0u]), m_forEach(forEach)
         {
         }
 
@@ -227,25 +231,28 @@ namespace alpaka::lockstep
         constexpr decltype(auto) operator=(T_Other const & other) const
         {
             using Op = Assignment;
-            auto rightXpr = Op::makeRightXprFromContainer(other);
-            return Xpr<Op, ThisXpr_t, decltype(rightXpr)>(*this, rightXpr);
+            auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
+            return Xpr<Op, ThisXpr_t, decltype(rightXpr), T_Foreach>(*this, rightXpr);
         }
     };
 
     //const left operand, cannot assign
-    template<typename T_Functor, typename T_Left, typename T_Right>
+    template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach>
     class Xpr{
 
         //left&right with constness added as required by the Functor
         using T_Left_const_t = XprArgLeft_t<T_Functor, T_Left>;
         using T_Right_const_t = XprArgRight_t<T_Functor, T_Right>;
 
-        using ThisXpr_t = Xpr<T_Functor, T_Left, T_Right>;
-
         T_Left_const_t m_leftOperand;
         T_Right_const_t m_rightOperand;
     public:
-        Xpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right)
+        T_Foreach const& m_forEach;
+
+        using ThisXpr_t = Xpr<T_Functor, T_Left, T_Right, T_Foreach>;
+        static constexpr bool simdWidthIsUnspecified = T_Foreach::simdWidthIsUnspecified;
+
+        Xpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right), m_forEach(decltype(left)::simdWidthIsUnspecified ? right.m_forEach : left.m_forEach )
         {
         }
 
@@ -267,8 +274,8 @@ namespace alpaka::lockstep
         constexpr decltype(auto) operator+(T_Other const & other) const
         {
             using Op = Addition;
-            auto rightXpr = Op::makeRightXprFromContainer(other);
-            return Xpr<Op, ThisXpr_t, decltype(rightXpr)>(*this, rightXpr);
+            auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
+            return Xpr<Op, ThisXpr_t, decltype(rightXpr), T_Foreach>(*this, rightXpr);
         }
 
         //used if T_Other is already an expression
@@ -276,8 +283,8 @@ namespace alpaka::lockstep
         constexpr decltype(auto) operator=(T_Other const & other) const
         {
             using Op = Assignment;
-            auto rightXpr = Op::makeRightXprFromContainer(other);
-            return Xpr<Op, ThisXpr_t, decltype(rightXpr)>(*this, rightXpr);
+            auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
+            return Xpr<Op, ThisXpr_t, decltype(rightXpr), T_Foreach>(*this, rightXpr);
         }
     };
 

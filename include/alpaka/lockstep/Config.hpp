@@ -27,6 +27,12 @@ namespace alpaka
 {
     namespace lockstep
     {
+        namespace detail{
+
+            static constexpr auto unspecifiedSimdExtent = 0u;
+
+        } // namespace detail
+
         /** describe a constant index domain
          *
          * describe the size of the index domain and the number of workers to operate on a lockstep domain
@@ -35,15 +41,17 @@ namespace alpaka
          * @tparam T_numWorkers number of worker working on @p T_domainSize
          * @tparam T_simdSize SIMD width
          */
-        template<uint32_t T_domainSize, uint32_t T_numWorkers, uint32_t T_simdSize>
+        template<uint32_t T_domainSize, uint32_t T_numWorkers, uint32_t T_simdSize = detail::unspecifiedSimdExtent>
         struct Config
         {
             /** number of indices within the domain */
             static constexpr uint32_t domainSize = T_domainSize;
             /** number of worker (threads) working on @p domainSize */
             static constexpr uint32_t numWorkers = T_numWorkers;
+            /** Indicates wether the user specified a Simd width or not */
+            static constexpr bool simdWidthIsUnspecified = (T_simdSize == detail::unspecifiedSimdExtent);
             /** SIMD width */
-            static constexpr uint32_t simdSize = T_simdSize;
+            static constexpr uint32_t simdSize = simdWidthIsUnspecified ? 1u : T_simdSize;
 
             /** maximum number of indices a worker must process if the domain is equally distributed over all worker */
             static constexpr uint32_t maxIndicesPerWorker = alpaka::core::divCeil(domainSize, simdSize * numWorkers) * simdSize;
