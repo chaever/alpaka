@@ -154,19 +154,17 @@ namespace alpaka::lockstep
         {
         }
 
-        template<typename T_Elem>
-        decltype(auto) operator[](SimdLookupIndex<T_Elem> const idx) const
+        decltype(auto) operator[](SimdLookupIndex const idx) const
         {
             //auto* tmpPtr = &m_source + laneCount<T_Elem> * m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
             //std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", SimdLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
             //const auto& tmp = SimdInterface_t<T_Elem>::loadUnaligned(tmpPtr);
             //std::cout << "ReadLeafXpr::operator[]("<<static_cast<uint32_t>(idx)<<")[0] = " << tmp[0] << std::endl;
 
-            return SimdInterface_t<T_Elem>::loadUnaligned(&m_source + laneCount<T_Elem> * m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx));
+            return SimdInterface_t<T>::loadUnaligned(&m_source + laneCount<T> * (m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx)));
         }
 
-        template<typename T_Elem>
-        decltype(auto) operator[](ScalarLookupIndex<T_Elem> const idx) const
+        decltype(auto) operator[](ScalarLookupIndex const idx) const
         {
             //auto* tmpPtr = &m_source + m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
             //std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", ScalarLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
@@ -208,19 +206,17 @@ namespace alpaka::lockstep
         }
 
         //returns ref to allow assignment
-        template<typename T_Elem>
-        auto & operator[](ScalarLookupIndex<T_Elem> const idx) const
+        auto & operator[](ScalarLookupIndex const idx) const
         {
             auto const& worker = m_forEach.getWorker();
-            return (&m_dest)[worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx)];
+            return (&m_dest)[m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx)];
         }
 
         //returns ref to allow assignment
-        template<typename T_Elem>
-        auto & operator[](SimdLookupIndex<T_Elem> const idx) const
+        auto & operator[](SimdLookupIndex const idx) const
         {
             auto const& worker = m_forEach.getWorker();
-            return (&m_dest)[laneCount<T_Elem> * worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx)];
+            return (&m_dest)[laneCount<T> * (worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(worker)>::numWorkers) * static_cast<uint32_t>(idx))];
         }
 
         //used if T_Other is already an expression
@@ -288,20 +284,23 @@ namespace alpaka::lockstep
     void evaluateExpression(T_Xpr const& xpr)
     {
         constexpr auto lanes = laneCount<T_Elem>;
-        constexpr auto vectorLoops = lengthOfVectors/lanes;
+        constexpr auto numWorkers = decltype(xpr.m_forEach.getWorker())::numWorkers;
+        constexpr auto vectorLoops = lengthOfVectors/(lanes*numWorkers);
+        const auto workerIdx = xpr.m_forEach.getWorker().getWorkerIdx();
 
         //std::cout << "evaluateExpression: running " << vectorLoops << " vectorLoops and " << (lengthOfVectors - vectorLoops*lanes) << " scalar loops." << std::endl;
 
         for(std::size_t i = 0u; i<vectorLoops; ++i){
             //std::cout << "evaluateExpression: starting vectorLoop " << i << std::endl;
             //uses the operator[] that returns const Pack_t
-            xpr[SimdLookupIndex<T_Elem>(i)];
+            xpr[SimdLookupIndex(i)];
 
             //std::cout << "evaluateExpression: finished vectorLoop " << i << std::endl;
         }
-        for(std::size_t i = vectorLoops*lanes; i<lengthOfVectors; ++i){
+        for(std::size_t i = lanes*vectorLoops; i<lengthOfVectors; ++i){
+            //std::cout << "evaluateExpression: starting scalarLoop " << i << std::endl;
             //uses the operator[] that returns const T_Elem &
-            xpr[ScalarLookupIndex<T_Elem>(i)];
+            xpr[ScalarLookupIndex(i)];
         }
     }
 
