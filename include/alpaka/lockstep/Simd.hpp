@@ -113,12 +113,9 @@ namespace alpaka::lockstep
     template<typename T_Type>
     using Pack_t = typename SimdInterface_t<T_Type>::Pack_t;
 
-    template<typename T_Elem>
     class ScalarLookupIndex{
         std::size_t m_idx;
     public:
-        using Elem_type = T_Elem;
-        using Pack_type = T_Elem;
 
         ScalarLookupIndex (const std::size_t idx) : m_idx(idx){}
 
@@ -129,20 +126,16 @@ namespace alpaka::lockstep
         }
     };
 
-    template<typename T_Elem>
     class SimdLookupIndex{
         std::size_t m_idx;
     public:
-
-        using Elem_type = T_Elem;
-        using Pack_type = Pack_t<T_Elem>;
 
         SimdLookupIndex (const std::size_t idx) : m_idx(idx){}
 
         //allow conversion to flat number, but not implicitly
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit operator uint32_t() const
         {
-            return m_idx*laneCount<T_Elem>;
+            return m_idx;
         }
     };
 } // namespace alpaka::lockstep
