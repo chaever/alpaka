@@ -95,16 +95,15 @@ namespace alpaka::lockstep
     struct Assignment{
         template<typename T_Left, typename T_Right, std::enable_if_t< std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
         static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const right){
-            std::cout << "Assignment<Pack>::operator[]: before writing " << right[0] << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
+            //std::cout << "Assignment<Pack>::operator[]: before writing " << right[0] << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
             SimdInterface_t<T_Left>::storeUnaligned(right, &left);
-            std::cout << "Assignment<Pack>::operator[]: after  writing " << right[0] << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
+            //std::cout << "Assignment<Pack>::operator[]: after  writing " << left     << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
             return right;
         }
         template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
         static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){
-            std::cout << "Assignment<Scalar>::operator[]: before writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
+            //std::cout << "Assignment<Scalar>::operator[]: before writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
             return left=right;
-            std::cout << "Assignment<Scalar>::operator[]: after  writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
         }
 
         template<typename T>
@@ -158,10 +157,10 @@ namespace alpaka::lockstep
         template<typename T_Elem>
         decltype(auto) operator[](SimdLookupIndex<T_Elem> const idx) const
         {
-            auto* tmpPtr = &m_source + laneCount<T_Elem> * m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
-            std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", SimdLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
-            const auto& tmp = SimdInterface_t<T_Elem>::loadUnaligned(tmpPtr);
-            std::cout << "ReadLeafXpr::operator[]("<<static_cast<uint32_t>(idx)<<")[0] = " << tmp[0] << std::endl;
+            //auto* tmpPtr = &m_source + laneCount<T_Elem> * m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
+            //std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", SimdLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
+            //const auto& tmp = SimdInterface_t<T_Elem>::loadUnaligned(tmpPtr);
+            //std::cout << "ReadLeafXpr::operator[]("<<static_cast<uint32_t>(idx)<<")[0] = " << tmp[0] << std::endl;
 
             return SimdInterface_t<T_Elem>::loadUnaligned(&m_source + laneCount<T_Elem> * m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx));
         }
@@ -169,10 +168,10 @@ namespace alpaka::lockstep
         template<typename T_Elem>
         decltype(auto) operator[](ScalarLookupIndex<T_Elem> const idx) const
         {
-            auto* tmpPtr = &m_source + m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
-            std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", ScalarLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
-            const auto& tmp = *tmpPtr;
-            std::cout << "ReadLeafXpr::operator[]("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
+            //auto* tmpPtr = &m_source + m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
+            //std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", ScalarLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
+            //const auto& tmp = *tmpPtr;
+            //std::cout << "ReadLeafXpr::operator[]("<<static_cast<uint32_t>(idx)<<") = " << tmp << std::endl;
 
             return (&m_source)[m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx)];
         }
