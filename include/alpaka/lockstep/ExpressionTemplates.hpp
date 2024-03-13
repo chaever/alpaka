@@ -307,28 +307,28 @@ namespace alpaka::lockstep
 
     template<typename T_ForEach, typename T_Elem>
     auto load(T_ForEach const& forEach, T_Elem const * const ptr){
-        static constexpr auto spacingBetweenSimdPacksOwnedByOneWorker = T_ForEach::numWorkers*laneCount<T_Elem>;
-        return ReadLeafXpr<spacingBetweenSimdPacksOwnedByOneWorker, T_ForEach, T_Elem>(forEach, ptr);
+        static constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = false;
+        return ReadLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, T_ForEach, T_Elem>(forEach, ptr);
     }
 
     template<typename T_Worker, typename T_Elem, typename T_Config>
     auto load(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> const& ctxVar){
         using ForEach_t = ForEach<T_Worker, T_Config>;
-        static constexpr auto spacingBetweenSimdPacksOwnedByOneWorker = laneCount<T_Elem>;
-        return ReadLeafXpr<spacingBetweenSimdPacksOwnedByOneWorker, ForEach_t, T_Elem>(forEach, ctxVar);
+        static constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = true;
+        return ReadLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, ForEach_t, T_Elem>(forEach, ctxVar);
     }
 
     template<typename T_ForEach, typename T_Elem>
     auto store(T_ForEach const& forEach, T_Elem * const ptr){
-        static constexpr auto spacingBetweenSimdPacksOwnedByOneWorker = T_ForEach::numWorkers*laneCount<T_Elem>;
-        return WriteLeafXpr<spacingBetweenSimdPacksOwnedByOneWorker, T_ForEach, T_Elem>(forEach, ptr);
+        static constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = false;
+        return WriteLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, T_ForEach, T_Elem>(forEach, ptr);
     }
 
     template<typename T_Worker, typename T_Elem, typename T_Config>
     auto store(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> & ctxVar){
         using ForEach_t = ForEach<T_Worker, T_Config>;
-        static constexpr auto spacingBetweenSimdPacksOwnedByOneWorker = laneCount<T_Elem>;
-        return WriteLeafXpr<spacingBetweenSimdPacksOwnedByOneWorker, ForEach_t, T_Elem>(forEach, ctxVar);
+        static constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = true;
+        return WriteLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, ForEach_t, T_Elem>(forEach, ctxVar);
     }
     ///TODO need function that returns CtxVar
     //void evalToCtxVar
