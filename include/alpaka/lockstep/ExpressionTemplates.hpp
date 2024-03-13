@@ -278,13 +278,17 @@ namespace alpaka::lockstep
         }
     };
 
-    ///TODO lengthOfVectors should be deduced (not automagically by the compiler, but by the user via traits)
     ///TODO T_Elem should maybe also be deduced?
-    template<typename T_Elem, std::size_t lengthOfVectors, typename T_Xpr>
+    template<typename T_Elem, typename T_Xpr>
     void evaluateExpression(T_Xpr const& xpr)
     {
         constexpr auto lanes = laneCount<T_Elem>;
-        constexpr auto numWorkers = decltype(xpr.m_forEach.getWorker())::numWorkers;
+        constexpr auto numWorkers = std::decay_t<decltype(xpr.m_forEach.getWorker())>::numWorkers;
+        constexpr auto domainSize = std::decay_t<decltype(xpr.m_forEach)>::domainSize;
+
+        constexpr auto simdLoops = domainSize/(numWorkers*lanes);
+
+        constexpr auto lengthOfVectors = alpaka::core::divCeil(domainSize, numWorkers);
         constexpr auto vectorLoops = lengthOfVectors/(lanes*numWorkers);
         const auto workerIdx = xpr.m_forEach.getWorker().getWorkerIdx();
 
