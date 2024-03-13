@@ -149,9 +149,9 @@ namespace alpaka
         public:
             using BaseConfig = Config<T_domainSize, T_Worker::numWorkers, T_simdSize>;
 
-            using BaseConfig::domainSize;
-            using BaseConfig::numWorkers;
-            using BaseConfig::simdSize;
+            static constexpr auto domainSize = BaseConfig::domainSize;
+            static constexpr auto numWorkers = BaseConfig::numWorkers;
+            static constexpr auto simdSize = BaseConfig::simdSize;
 
             /** constructor
              *
