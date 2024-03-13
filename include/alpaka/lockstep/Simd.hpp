@@ -70,7 +70,7 @@ namespace alpaka::lockstep
         }
 
         template<typename T_Other>
-        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC operator+(T_Other const & other){
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC decltype(auto) operator+(T_Other const & other){
             Pack_t tmp;
             for(auto i=0u; i<laneCount; ++i){
                 tmp[i]=*this[i] + other[i];
