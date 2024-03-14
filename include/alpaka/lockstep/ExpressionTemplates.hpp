@@ -132,7 +132,6 @@ namespace alpaka::lockstep
     template<typename T_Functor, typename T>
     using XprArgRight_t = typename T_Functor::template OperandXprTrait<T>::LeftArg_t;
 
-
     //cannot be assigned to
     //can be made from pointers, or some container classes
     template<bool T_assumeOneWorker, typename T_Foreach, typename T>
@@ -152,11 +151,14 @@ namespace alpaka::lockstep
         template<typename T_Config>
         ReadLeafXpr(T_Foreach const& forEach, typename lockstep::Variable<T, T_Config> const& v) : m_source(v[0u]), m_forEach(forEach)
         {
+            //if(alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(m_forEach.getWorker().getAcc())[0u] == 1u){
+            //    std::cout << "ReadLeafXpr::Ctor<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ">(): initialized with address " << reinterpret_cast<uint64_t>(&m_source) << std::endl;
+            //}
         }
 
         decltype(auto) operator[](SimdLookupIndex const idx) const
         {
-            /*if(alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(m_forEach.getWorker().getAcc())[0u] == 0u){
+            /*if(alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(m_forEach.getWorker().getAcc())[0u] == 1u){
                 auto* tmpPtr = &m_source + laneCount<T> * (m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx));
                 std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", SimdLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
                 const auto& tmp = SimdInterface_t<T>::loadUnaligned(tmpPtr);
@@ -169,7 +171,7 @@ namespace alpaka::lockstep
         template<uint32_t T_offset>
         decltype(auto) operator[](ScalarLookupIndex<T_offset> const idx) const
         {
-            /*if(alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(m_forEach.getWorker().getAcc())[0u] == 0u){
+            /*if(alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(m_forEach.getWorker().getAcc())[0u] == 1u){
                 auto* tmpPtr = &m_source + T_offset + m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
                 std::cout << "ReadLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", ScalarLookupIndex>("<<static_cast<uint32_t>(idx)<<"): loading from " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_source) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_source)) << std::endl;
                 const auto& tmp = *tmpPtr;
@@ -215,6 +217,12 @@ namespace alpaka::lockstep
         auto & operator[](ScalarLookupIndex<T_offset> const idx) const
         {
             auto const& worker = m_forEach.getWorker();
+
+            /*if(alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(m_forEach.getWorker().getAcc())[0u] == 1u){
+                auto* tmpPtr = &m_dest + T_offset + worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(worker)>::numWorkers) * static_cast<uint32_t>(idx);
+                std::cout << "WriteLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", SimdLookupIndex>("<<static_cast<uint32_t>(idx)<<"): accessed address " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_dest) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_dest)) << std::endl;
+            }*/
+
             return (&m_dest)[T_offset + worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(worker)>::numWorkers) * static_cast<uint32_t>(idx)];
         }
 
@@ -222,6 +230,12 @@ namespace alpaka::lockstep
         auto & operator[](SimdLookupIndex const idx) const
         {
             auto const& worker = m_forEach.getWorker();
+
+            /*if(alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(m_forEach.getWorker().getAcc())[0u] == 1u){
+                auto* tmpPtr = &m_dest + laneCount<T> * (worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(worker)>::numWorkers) * static_cast<uint32_t>(idx));
+                std::cout << "WriteLeafXpr::operator[]<T_assumeOneWorker=" << (T_assumeOneWorker?"true":"false") << ", SimdLookupIndex>("<<static_cast<uint32_t>(idx)<<"): accessed address " << reinterpret_cast<uint64_t>(tmpPtr) << " = " << reinterpret_cast<uint64_t>(&m_dest) << "+" << (reinterpret_cast<uint64_t>(tmpPtr)-reinterpret_cast<uint64_t>(&m_dest)) << std::endl;
+            }*/
+
             return (&m_dest)[laneCount<T> * (worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(worker)>::numWorkers) * static_cast<uint32_t>(idx))];
         }
 
