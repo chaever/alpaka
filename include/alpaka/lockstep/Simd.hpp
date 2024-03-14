@@ -113,9 +113,12 @@ namespace alpaka::lockstep
     template<typename T_Type>
     using Pack_t = typename SimdInterface_t<T_Type>::Pack_t;
 
+    template<uint32_t T_offset = 0u>
     class ScalarLookupIndex{
         std::size_t m_idx;
     public:
+
+        static constexpr auto offset = T_offset;
 
         ScalarLookupIndex (const std::size_t idx) : m_idx(idx){}
 
