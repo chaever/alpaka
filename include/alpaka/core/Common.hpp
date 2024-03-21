@@ -90,6 +90,8 @@
 #elif BOOST_COMP_MSVC || defined(BOOST_COMP_MSVC_EMULATED)
 // TODO: With C++20 [[msvc::forceinline]] can be used.
 #    define ALPAKA_FN_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#    define ALPAKA_FN_INLINE inline __attribute__((always_inline))
 #else
 // For gcc, clang, and clang-based compilers like Intel icpx
 #    define ALPAKA_FN_INLINE [[gnu::always_inline]] inline

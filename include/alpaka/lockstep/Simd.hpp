@@ -106,7 +106,6 @@ namespace alpaka::lockstep
             Pack_t tmp;
             for(auto i=0u; i<laneCount; ++i){
                 tmp[i]=*this[i] + other[i];
-
             }
             return tmp;
         }
@@ -143,10 +142,10 @@ namespace alpaka::lockstep
 
         static constexpr auto offset = T_offset;
 
-        ScalarLookupIndex (const std::size_t idx) : m_idx(idx){}
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ScalarLookupIndex (const std::size_t idx) : m_idx(idx){}
 
         //allow conversion to flat number, but not implicitly
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit operator uint32_t() const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit constexpr operator uint32_t() const
         {
             return m_idx;
         }
@@ -156,10 +155,10 @@ namespace alpaka::lockstep
         std::size_t m_idx;
     public:
 
-        SimdLookupIndex (const std::size_t idx) : m_idx(idx){}
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE SimdLookupIndex (const std::size_t idx) : m_idx(idx){}
 
         //allow conversion to flat number, but not implicitly
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit operator uint32_t() const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit constexpr operator uint32_t() const
         {
             return m_idx;
         }

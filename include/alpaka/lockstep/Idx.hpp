@@ -51,7 +51,7 @@ namespace alpaka
              *
              * @return range [0,domain size)
              */
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE operator uint32_t() const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr operator uint32_t() const
             {
                 return domElemIdx;
             }
@@ -61,7 +61,7 @@ namespace alpaka
 
         private:
             /** N-th element the worker is processing */
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE uint32_t getWorkerElemIdx() const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr uint32_t getWorkerElemIdx() const
             {
                 return workerElemIdx;
             }

@@ -78,7 +78,7 @@ namespace alpaka
              *
              * all members are uninitialized
              */
-            DeviceCapableArray() = default;
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE DeviceCapableArray() = default;
 
             /** constructor
              *
