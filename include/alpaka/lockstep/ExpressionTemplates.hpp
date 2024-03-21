@@ -116,6 +116,18 @@ namespace alpaka::lockstep
         }\
     };
 
+//for operator def inside the Xpr classes
+#define XPR_OP_WRAPPER() operator
+#define XPR_OP(name, shortFunc)\
+    template<typename T_Other>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Other const & other) const\
+    {\
+        using Op = name;\
+        auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);\
+        return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);\
+    }
+
+
     BINARY_READONLY_OP(Addition, +)
     BINARY_READONLY_OP(Subtraction, -)
     BINARY_READONLY_OP(Multiplication, *)
@@ -124,6 +136,10 @@ namespace alpaka::lockstep
     BINARY_ASSIGNMENT_OP(Assignment, =)
     BINARY_ASSIGNMENT_OP(AssignAdd, +=)
     BINARY_ASSIGNMENT_OP(AssignMul, *=)
+
+//clean up
+#undef BINARY_READONLY_OP
+#undef BINARY_ASSIGNMENT_OP
 
     //shortcuts
     template<typename T_Functor, typename T>
@@ -180,14 +196,10 @@ namespace alpaka::lockstep
             return (&m_source)[T_offset + m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx)];
         }
 
-        //used if T_Other is already an expression
-        template<typename T_Other>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other) const
-        {
-            using Op = Addition;
-            auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
-            return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);
-        }
+        XPR_OP(Addition, +)
+        XPR_OP(Subtraction, -)
+        XPR_OP(Multiplication, *)
+        XPR_OP(Division, /)
     };
 
     //can be assigned to
@@ -238,14 +250,10 @@ namespace alpaka::lockstep
             return (&m_dest)[laneCount<T> * (worker.getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(worker)>::numWorkers) * static_cast<uint32_t>(idx))];
         }
 
-        //used if T_Other is already an expression
-        template<typename T_Other>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator=(T_Other const & other) const
-        {
-            using Op = Assignment;
-            auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
-            return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);
-        }
+        XPR_OP(Assignment, =)
+        XPR_OP(AssignAdd, +=)
+        XPR_OP(AssignMul, *=)
+
     };
 
     //const left operand, cannot assign
@@ -278,16 +286,15 @@ namespace alpaka::lockstep
             return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
         }
 
-        //used if T_Other is already an expression
-        template<typename T_Other>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator+(T_Other const & other) const
-        {
-            using Op = Addition;
-            auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
-            return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);
-        }
+        XPR_OP(Addition, +)
+        XPR_OP(Subtraction, -)
+        XPR_OP(Multiplication, *)
+        XPR_OP(Division, /)
 
-        //used if T_Other is already an expression
+        XPR_OP(Assignment, =)
+        XPR_OP(AssignAdd, +=)
+        XPR_OP(AssignMul, *=)
+
         template<typename T_Other>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator=(T_Other const & other) const
         {
@@ -353,5 +360,9 @@ namespace alpaka::lockstep
     }
     ///TODO need function that returns CtxVar
     //void evalToCtxVar
+
+//clean up
+#undef XPR_OP_WRAPPER
+#undef XPR_OP
 
 } // namespace alpaka::lockstep
