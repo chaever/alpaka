@@ -64,67 +64,66 @@ namespace alpaka::lockstep
 
     } // namespace detail
 
-    struct Addition{
-        //should also work for Simd-types that define their own operator+
-        template<typename T_Left, typename T_Right>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){
-            //uses T_Left::operator+(T_Right)
-            return left+right;
-        }
-
-        template<typename T>
-        struct OperandXprTrait{
-            //left & right parent expressions shall both be const
-            using LeftArg_t = T const;
-            using RightArg_t = T const;
-        };
-
-        //converts the righthand container operand to an expression if that is needed
-        template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
-            //additions right operand is read-only
-            return load(forEach, other);
-        }
-
-        template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
-            return other;
-        }
+//operations like +,-,*,/ that dont modify their operands
+#define BINARY_READONLY_OP(name, shortFunc)\
+    struct name{\
+        template<typename T_Left, typename T_Right>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+            return left shortFunc right;\
+        }\
+        template<typename T>\
+        struct OperandXprTrait{\
+            using LeftArg_t = T const;\
+            using RightArg_t = T const;\
+        };\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+            return load(forEach, other);\
+        }\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+            return other;\
+        }\
     };
 
-    struct Assignment{
-        template<typename T_Left, typename T_Right, std::enable_if_t< std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const right){
-            //std::cout << "Assignment<Pack>::operator[]: before writing " << right[0] << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
-            SimdInterface_t<T_Left>::storeUnaligned(right, &left);
-            //std::cout << "Assignment<Pack>::operator[]: after  writing " << left     << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
-            return right;
-        }
-        template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){
-            //std::cout << "Assignment<Scalar>::operator[]: before writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
-            return left=right;
-        }
-
-        template<typename T>
-        struct OperandXprTrait{
-            //right parent expression is const, left is assignee and therefore not const
-            using LeftArg_t = T;
-            using RightArg_t = T const;
-        };
-
-        //converts the righthand container operand to an expression if that is needed
-        template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
-            //assignmnets right operand is read-only
-            return load(forEach, other);
-        }
-
-        template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
-            return other;
-        }
+//used for =, +=, *=,...
+#define BINARY_ASSIGNMENT_OP(name, shortFunc)\
+    struct name{\
+        template<typename T_Left, typename T_Right, std::enable_if_t< std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const right){\
+            /*std::cout << #name << "<Pack>::operator[]: before writing " << right[0] << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;*/\
+            SimdInterface_t<T_Left>::storeUnaligned(right, &left);\
+            /*std::cout << #name << "<Pack>::operator[]: after  writing " << left     << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;*/\
+            return right;\
+        }\
+        template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){\
+            /*std::cout << #name << "<Scalar>::operator[]: before writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;*/\
+            return left=right;\
+        }\
+        template<typename T>\
+        struct OperandXprTrait{\
+            using LeftArg_t = T;\
+            using RightArg_t = T const;\
+        };\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+            return load(forEach, other);\
+        }\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+            return other;\
+        }\
     };
+
+    BINARY_READONLY_OP(Addition, +)
+    BINARY_READONLY_OP(Subtraction, -)
+    BINARY_READONLY_OP(Multiplication, *)
+    BINARY_READONLY_OP(Division, *)
+
+    BINARY_ASSIGNMENT_OP(Assignment, =)
+    BINARY_ASSIGNMENT_OP(AssignAdd, +=)
+    BINARY_ASSIGNMENT_OP(AssignMul, *=)
 
     //shortcuts
     template<typename T_Functor, typename T>
