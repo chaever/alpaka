@@ -29,7 +29,7 @@ namespace alpaka::lockstep
     template<uint32_t T_numSuggestedWorkers>
     struct WorkerCfg;
 
-    /** Entity of an worker.
+    /** Entity of a worker.
      *
      * Context object used for lockstep programming. This object is providing access to the alpaka accelerator and
      * indicies used for the lockstep programming model.

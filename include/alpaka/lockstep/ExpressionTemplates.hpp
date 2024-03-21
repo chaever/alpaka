@@ -29,16 +29,16 @@ namespace alpaka::lockstep
     class ForEach;
 
     template<typename T_ForEach, typename T_Elem>
-    auto load(T_ForEach const& forEach, T_Elem const * const ptr);
+    constexpr auto load(T_ForEach const& forEach, T_Elem const * const ptr);
 
     template<typename T_Worker, typename T_Elem, typename T_Config>
-    auto load(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> const& ctxVar);
+    constexpr auto load(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> const& ctxVar);
 
     template<typename T_ForEach, typename T_Elem>
-    auto store(T_ForEach const& forEach, T_Elem * const ptr);
+    constexpr auto store(T_ForEach const& forEach, T_Elem * const ptr);
 
     template<typename T_Worker, typename T_Elem, typename T_Config>
-    auto store(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> & ctxVar);
+    constexpr auto store(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> & ctxVar);
 
     namespace detail
     {
@@ -67,7 +67,7 @@ namespace alpaka::lockstep
     struct Addition{
         //should also work for Simd-types that define their own operator+
         template<typename T_Left, typename T_Right>
-        static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){
             //uses T_Left::operator+(T_Right)
             return left+right;
         }
@@ -81,27 +81,27 @@ namespace alpaka::lockstep
 
         //converts the righthand container operand to an expression if that is needed
         template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
             //additions right operand is read-only
             return load(forEach, other);
         }
 
         template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
-        static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
             return other;
         }
     };
 
     struct Assignment{
         template<typename T_Left, typename T_Right, std::enable_if_t< std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
-        static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const right){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const right){
             //std::cout << "Assignment<Pack>::operator[]: before writing " << right[0] << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
             SimdInterface_t<T_Left>::storeUnaligned(right, &left);
             //std::cout << "Assignment<Pack>::operator[]: after  writing " << left     << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
             return right;
         }
         template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
-        static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){
             //std::cout << "Assignment<Scalar>::operator[]: before writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;
             return left=right;
         }
@@ -115,13 +115,13 @@ namespace alpaka::lockstep
 
         //converts the righthand container operand to an expression if that is needed
         template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>
-        static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
             //assignmnets right operand is read-only
             return load(forEach, other);
         }
 
         template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>
-        static decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
             return other;
         }
     };
@@ -156,7 +156,7 @@ namespace alpaka::lockstep
             //}
         }
 
-        decltype(auto) operator[](SimdLookupIndex const idx) const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex const idx) const
         {
             /*if(alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(m_forEach.getWorker().getAcc())[0u] == 1u){
                 auto* tmpPtr = &m_source + laneCount<T> * (m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx));
@@ -169,7 +169,7 @@ namespace alpaka::lockstep
         }
 
         template<uint32_t T_offset>
-        decltype(auto) operator[](ScalarLookupIndex<T_offset> const idx) const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_offset> const idx) const
         {
             /*if(alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(m_forEach.getWorker().getAcc())[0u] == 1u){
                 auto* tmpPtr = &m_source + T_offset + m_forEach.getWorker().getWorkerIdx() + (T_assumeOneWorker ? 1 : std::decay_t<decltype(m_forEach.getWorker())>::numWorkers) * static_cast<uint32_t>(idx);
@@ -183,7 +183,7 @@ namespace alpaka::lockstep
 
         //used if T_Other is already an expression
         template<typename T_Other>
-        constexpr auto operator+(T_Other const & other) const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(T_Other const & other) const
         {
             using Op = Addition;
             auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
@@ -214,7 +214,7 @@ namespace alpaka::lockstep
 
         //returns ref to allow assignment
         template<uint32_t T_offset>
-        auto & operator[](ScalarLookupIndex<T_offset> const idx) const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](ScalarLookupIndex<T_offset> const idx) const
         {
             auto const& worker = m_forEach.getWorker();
 
@@ -227,7 +227,7 @@ namespace alpaka::lockstep
         }
 
         //returns ref to allow assignment
-        auto & operator[](SimdLookupIndex const idx) const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](SimdLookupIndex const idx) const
         {
             auto const& worker = m_forEach.getWorker();
 
@@ -241,7 +241,7 @@ namespace alpaka::lockstep
 
         //used if T_Other is already an expression
         template<typename T_Other>
-        constexpr decltype(auto) operator=(T_Other const & other) const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator=(T_Other const & other) const
         {
             using Op = Assignment;
             auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
@@ -267,7 +267,7 @@ namespace alpaka::lockstep
         }
 
         template<typename T_Idx>
-        constexpr decltype(auto) operator[](T_Idx const i) const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
         {
             //std::cout << "Xpr::operator[]: evaluating m_leftOperand[" << static_cast<uint32_t>(i) << "]..." << std::endl;
             //const auto& tmp1 = m_leftOperand[i];
@@ -281,7 +281,7 @@ namespace alpaka::lockstep
 
         //used if T_Other is already an expression
         template<typename T_Other>
-        constexpr decltype(auto) operator+(T_Other const & other) const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator+(T_Other const & other) const
         {
             using Op = Addition;
             auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
@@ -290,7 +290,7 @@ namespace alpaka::lockstep
 
         //used if T_Other is already an expression
         template<typename T_Other>
-        constexpr decltype(auto) operator=(T_Other const & other) const
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator=(T_Other const & other) const
         {
             using Op = Assignment;
             auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
@@ -300,7 +300,7 @@ namespace alpaka::lockstep
 
     ///TODO T_Elem should maybe also be deduced?
     template<typename T_Elem, typename T_Xpr>
-    void evaluateExpression(T_Xpr const& xpr)
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void evaluateExpression(T_Xpr const& xpr)
     {
         constexpr auto lanes = laneCount<T_Elem>;
         constexpr auto numWorkers = std::decay_t<decltype(xpr.m_forEach.getWorker())>::numWorkers;
@@ -328,28 +328,28 @@ namespace alpaka::lockstep
     }
 
     template<typename T_ForEach, typename T_Elem>
-    auto load(T_ForEach const& forEach, T_Elem const * const ptr){
-        static constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = false;
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_ForEach const& forEach, T_Elem const * const ptr){
+        constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = false;
         return ReadLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, T_ForEach, T_Elem>(forEach, ptr);
     }
 
     template<typename T_Worker, typename T_Elem, typename T_Config>
-    auto load(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> const& ctxVar){
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> const& ctxVar){
         using ForEach_t = ForEach<T_Worker, T_Config>;
-        static constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = true;
+        constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = true;
         return ReadLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, ForEach_t, T_Elem>(forEach, ctxVar);
     }
 
     template<typename T_ForEach, typename T_Elem>
-    auto store(T_ForEach const& forEach, T_Elem * const ptr){
-        static constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = false;
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_ForEach const& forEach, T_Elem * const ptr){
+        constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = false;
         return WriteLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, T_ForEach, T_Elem>(forEach, ptr);
     }
 
     template<typename T_Worker, typename T_Elem, typename T_Config>
-    auto store(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> & ctxVar){
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> & ctxVar){
         using ForEach_t = ForEach<T_Worker, T_Config>;
-        static constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = true;
+        constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = true;
         return WriteLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, ForEach_t, T_Elem>(forEach, ctxVar);
     }
     ///TODO need function that returns CtxVar
