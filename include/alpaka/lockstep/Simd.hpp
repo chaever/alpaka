@@ -3,6 +3,7 @@
 #pragma once
 
 #include <experimental/simd>
+#include <algorithm>
 
 namespace alpaka::lockstep
 {
@@ -26,14 +27,19 @@ namespace alpaka::lockstep
 
         inline static constexpr std::size_t laneCount = 1u;
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const Elem_t* const mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const T_Elem* const mem) -> Pack_t
         {
             return *mem;
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, Elem_t* const mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, T_Elem* const mem)
         {
             *mem = t;
+        }
+
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
+        {
+            return elem;
         }
     };
 
@@ -45,14 +51,19 @@ namespace alpaka::lockstep
 
         inline static constexpr std::size_t laneCount = Pack_t::size();
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(Elem_t const * const mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(T_Elem const * const mem) -> Pack_t
         {
             return Pack_t(mem, std::experimental::element_aligned);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, Elem_t * const mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, T_Elem * const mem)
         {
             t.copy_to(mem, std::experimental::element_aligned);
+        }
+
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
+        {
+            return Pack_t(elem);
         }
     };
 
@@ -65,14 +76,19 @@ namespace alpaka::lockstep
 
         inline static constexpr std::size_t laneCount = Pack_t::size();
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(Elem_t const * const mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(T_Elem const * const mem) -> Pack_t
         {
             return Pack_t(mem, std::experimental::element_aligned);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, Elem_t * const mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, T_Elem * const mem)
         {
             t.copy_to(mem, std::experimental::element_aligned);
+        }
+
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
+        {
+            return Pack_t(elem);
         }
     };
 
@@ -101,13 +117,9 @@ namespace alpaka::lockstep
                 mem[i] = pack[i];
         }
 
-        template<typename T_Other>
-        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC decltype(auto) operator+(T_Other const & other){
-            Pack_t tmp;
-            for(auto i=0u; i<laneCount; ++i){
-                tmp[i]=*this[i] + other[i];
-            }
-            return tmp;
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
+        {
+            return {elem, elem, elem, elem};
         }
     };
 
