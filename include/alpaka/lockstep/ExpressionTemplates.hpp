@@ -25,20 +25,17 @@ namespace alpaka::lockstep
     template<typename T_Type, typename T_Config>
     struct Variable;
 
-    template<typename T_Worker, typename T_Config>
-    class ForEach;
-
     template<typename T_ForEach, typename T_Elem>
     constexpr auto load(T_ForEach const& forEach, T_Elem const * const ptr);
 
-    template<typename T_Worker, typename T_Elem, typename T_Config>
-    constexpr auto load(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> const& ctxVar);
+    template<template<typename, typename> typename T_Foreach, template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
+    constexpr auto load(T_Foreach<T_Worker, T_Config> const& forEach, T_Variable<T_Elem, T_Config> const& ctxVar);
 
     template<typename T_ForEach, typename T_Elem>
     constexpr auto store(T_ForEach const& forEach, T_Elem * const ptr);
 
-    template<typename T_Worker, typename T_Elem, typename T_Config>
-    constexpr auto store(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> & ctxVar);
+    template<template<typename, typename> typename T_Foreach, template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
+    constexpr auto store(T_Foreach<T_Worker, T_Config> const& forEach, T_Variable<T_Elem, T_Config> & ctxVar);
 
     namespace detail
     {
@@ -339,9 +336,9 @@ namespace alpaka::lockstep
         return ReadLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, T_ForEach, T_Elem>(forEach, ptr);
     }
 
-    template<typename T_Worker, typename T_Elem, typename T_Config>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> const& ctxVar){
-        using ForEach_t = ForEach<T_Worker, T_Config>;
+    template<template<typename, typename> typename T_Foreach, template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Foreach<T_Worker, T_Config> const& forEach, T_Variable<T_Elem, T_Config> const& ctxVar){
+        using ForEach_t = T_Foreach<T_Worker, T_Config>;
         constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = true;
         return ReadLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, ForEach_t, T_Elem>(forEach, ctxVar);
     }
@@ -352,14 +349,12 @@ namespace alpaka::lockstep
         return WriteLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, T_ForEach, T_Elem>(forEach, ptr);
     }
 
-    template<typename T_Worker, typename T_Elem, typename T_Config>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(lockstep::ForEach<T_Worker, T_Config> const& forEach, typename lockstep::Variable<T_Elem, T_Config> & ctxVar){
-        using ForEach_t = ForEach<T_Worker, T_Config>;
+    template<template<typename, typename> typename T_Foreach, template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Foreach<T_Worker, T_Config> const& forEach, T_Variable<T_Elem, T_Config> & ctxVar){
+        using ForEach_t = T_Foreach<T_Worker, T_Config>;
         constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = true;
         return WriteLeafXpr<assumeOnlyOneWorkerWillWorkOnTheData, ForEach_t, T_Elem>(forEach, ctxVar);
     }
-    ///TODO need function that returns CtxVar
-    //void evalToCtxVar
 
 //clean up
 #undef XPR_OP_WRAPPER
