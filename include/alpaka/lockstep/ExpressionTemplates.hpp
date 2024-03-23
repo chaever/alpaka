@@ -60,6 +60,9 @@ namespace alpaka::lockstep
         };
     } // namespace detail
 
+    template<typename T>
+    static constexpr bool isXpr_v = detail::IsXpr<T>::value;
+
 //operations like +,-,*,/ that dont modify their operands
 #define BINARY_READONLY_OP(name, shortFunc)\
     struct name{\
@@ -72,12 +75,20 @@ namespace alpaka::lockstep
             using LeftArg_t = T const;\
             using RightArg_t = T const;\
         };\
-        template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
             return load(forEach, other);\
         }\
-        template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+            return other;\
+        }\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other, T_Foreach const& forEach){\
+            return load(forEach, other);\
+        }\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other, T_Foreach const& forEach){\
             return other;\
         }\
     };
@@ -102,18 +113,42 @@ namespace alpaka::lockstep
             using LeftArg_t = T;\
             using RightArg_t = T const;\
         };\
-        template<typename T_Other, typename T_Foreach, std::enable_if_t<!detail::IsXpr<T_Other>::value, int> = 0>\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
             return load(forEach, other);\
         }\
-        template<typename T_Other, typename T_Foreach, std::enable_if_t< detail::IsXpr<T_Other>::value, int> = 0>\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+            return other;\
+        }\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other, T_Foreach const& forEach){\
+            return store(forEach, other);\
+        }\
+        template<typename T_Other, typename T_Foreach, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other, T_Foreach const& forEach){\
             return other;\
         }\
     };
 
-//for operator def inside the Xpr classes
+    BINARY_READONLY_OP(Addition, +)
+    BINARY_READONLY_OP(Subtraction, -)
+    BINARY_READONLY_OP(Multiplication, *)
+    BINARY_READONLY_OP(Division, /)
+
+    BINARY_ASSIGNMENT_OP(Assignment, =)
+    BINARY_ASSIGNMENT_OP(AssignAdd, +=)
+    BINARY_ASSIGNMENT_OP(AssignMul, *=)
+
+//clean up
+#undef BINARY_READONLY_OP
+#undef BINARY_ASSIGNMENT_OP
+
+//needed since there is no space between "operator" and "+" in "operator+"
 #define XPR_OP_WRAPPER() operator
+
+//for operator definitions inside the Xpr classes (=, +=, *= etc are not allowed as non-member functions).
+//Expression must be the lefthand operand(this).
 #define XPR_OP(name, shortFunc)\
     template<typename T_Other>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Other const & other) const\
@@ -123,18 +158,27 @@ namespace alpaka::lockstep
         return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);\
     }
 
-    BINARY_READONLY_OP(Addition, +)
-    BINARY_READONLY_OP(Subtraction, -)
-    BINARY_READONLY_OP(Multiplication, *)
-    BINARY_READONLY_OP(Division, *)
+//free operator definitions. Expression can be the left or right operand.
+#define XPR_OPERATOR(name, shortFunc)\
+    template<typename T_Left, typename T_Right, std::enable_if_t< alpaka::lockstep::isXpr_v<T_Left>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left left, T_Right const& right)\
+    {\
+        auto rightXpr = alpaka::lockstep::name::makeRightXprFromContainer(right, left.m_forEach);\
+        return alpaka::lockstep::Xpr<alpaka::lockstep::name, T_Left, decltype(rightXpr), decltype(left.m_forEach)>(left, rightXpr);\
+    }\
+    template<typename T_Left, typename T_Right, std::enable_if_t<!alpaka::lockstep::isXpr_v<T_Left> && alpaka::lockstep::isXpr_v<T_Right>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left const& left, T_Right right)\
+    {\
+        auto leftXpr = alpaka::lockstep::name::makeLeftXprFromContainer(left, right.m_forEach);\
+        return alpaka::lockstep::Xpr<alpaka::lockstep::name, decltype(leftXpr), T_Right, decltype(right.m_forEach)>(leftXpr, right);\
+    }
 
-    BINARY_ASSIGNMENT_OP(Assignment, =)
-    BINARY_ASSIGNMENT_OP(AssignAdd, +=)
-    BINARY_ASSIGNMENT_OP(AssignMul, *=)
+    XPR_OPERATOR(Addition, +)
+    XPR_OPERATOR(Subtraction, -)
+    XPR_OPERATOR(Multiplication, *)
+    XPR_OPERATOR(Division, /)
 
-//clean up
-#undef BINARY_READONLY_OP
-#undef BINARY_ASSIGNMENT_OP
+#undef XPR_OPERATOR
 
     //shortcuts
     template<typename T_Functor, typename T>
@@ -165,7 +209,7 @@ namespace alpaka::lockstep
         }
     };
 
-    //scalar, read-only node
+    //scalar, read-write node
     template<typename T_Foreach, typename T_Elem, uint32_t T_stride>
     class WriteLeafXpr<T_Foreach, T_Elem, 0u, T_stride>{
         T_Elem & m_dest;
@@ -217,14 +261,9 @@ namespace alpaka::lockstep
         {
             return (&m_source)[T_offset + m_forEach.getWorker().getWorkerIdx() + T_stride * static_cast<uint32_t>(idx)];
         }
-
-        XPR_OP(Addition, +)
-        XPR_OP(Subtraction, -)
-        XPR_OP(Multiplication, *)
-        XPR_OP(Division, /)
     };
 
-    //can be assigned to
+    //can be assigned to, and read from
     //can be made from pointers, or some container classes
     template<typename T_Foreach, typename T_Elem, uint32_t T_stride>
     class WriteLeafXpr<T_Foreach, T_Elem, 1u, T_stride>{
@@ -286,22 +325,9 @@ namespace alpaka::lockstep
             return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
         }
 
-        XPR_OP(Addition, +)
-        XPR_OP(Subtraction, -)
-        XPR_OP(Multiplication, *)
-        XPR_OP(Division, /)
-
         XPR_OP(Assignment, =)
         XPR_OP(AssignAdd, +=)
         XPR_OP(AssignMul, *=)
-
-        template<typename T_Other>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator=(T_Other const & other) const
-        {
-            using Op = Assignment;
-            auto rightXpr = Op::makeRightXprFromContainer(other, m_forEach);
-            return Xpr<Op, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach>(*this, rightXpr);
-        }
     };
 
     ///TODO T_Elem should maybe also be deduced?
@@ -332,24 +358,30 @@ namespace alpaka::lockstep
             xpr[ScalarLookupIndex<elementsProcessedBySimd>(i)];
         }
     }
-/*
+
+    //single element, broadcasted if required
     template<typename T_ForEach, typename T_Elem>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_ForEach const& forEach, T_Elem const & elem){
-        constexpr auto assumeOnlyOneWorkerWillWorkOnTheData = false;
-        return ReadLeafXpr<T_ForEach, T_Elem, assumeOnlyOneWorkerWillWorkOnTheData>(forEach, ptr);
+        return ReadLeafXpr<T_ForEach, T_Elem, 0u, 0u>(forEach, elem);
     }
-*/
 
+    //pointer to threadblocks data
     template<typename T_ForEach, typename T_Elem>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_ForEach const& forEach, T_Elem const * const ptr){
         constexpr uint32_t stride = std::decay_t<decltype(forEach.getWorker())>::numWorkers;
         return ReadLeafXpr<T_ForEach, T_Elem, 1u, stride>(forEach, ptr);
     }
 
+    //lockstep ctxVar
     template<template<typename, typename> typename T_Foreach, template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Foreach<T_Worker, T_Config> const& forEach, T_Variable<T_Elem, T_Config> const& ctxVar){
         constexpr uint32_t stride = 1u;
         return ReadLeafXpr<T_Foreach<T_Worker, T_Config>, T_Elem, 1u, stride>(forEach, ctxVar);
+    }
+
+    template<typename T_ForEach, typename T_Elem>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_ForEach const& forEach, T_Elem & elem){
+        return WriteLeafXpr<T_ForEach, T_Elem, 0u, 0u>(forEach, elem);
     }
 
     template<typename T_ForEach, typename T_Elem>
