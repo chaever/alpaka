@@ -103,10 +103,10 @@ namespace alpaka
             }
             /** @} */
 
-            template<bool T_assumeOneWorker, typename T_Foreach, typename T>
+            template<typename T_Foreach, typename T_Elem, bool T_assumeOneWorker>
             friend class ReadLeafXpr;
 
-            template<bool T_assumeOneWorker, typename T_Foreach, typename T>
+            template<typename T_Foreach, typename T_Elem, bool T_assumeOneWorker>
             friend class WriteLeafXpr;
 
         private:
