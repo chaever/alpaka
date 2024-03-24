@@ -58,13 +58,29 @@ namespace alpaka::lockstep
         struct IsXpr<WriteLeafXpr<T_Elem, T_Foreach, T_dimensions, T_stride> >{
             static constexpr bool value = true;
         };
+
+        template<uint32_t T_dim>
+        struct DowngradeToDimensionality{
+            template<typename T_Idx>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
+                return idx;
+            }
+        };
+        template<>
+        struct DowngradeToDimensionality<0u>{
+            template<typename T_Idx>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
+                return SingleElemIndex{};
+            }
+        };
+
     } // namespace detail
 
     template<typename T>
     static constexpr bool isXpr_v = detail::IsXpr<T>::value;
 
 //operations like +,-,*,/ that dont modify their operands
-#define BINARY_READONLY_OP(name, shortFunc)\
+#define BINARY_READONLY_OP(name, shortFunc, lDim, rDim)\
     struct name{\
         template<typename T_Left, typename T_Right>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
@@ -75,6 +91,8 @@ namespace alpaka::lockstep
             using LeftArg_t = T const;\
             using RightArg_t = T const;\
         };\
+        static constexpr auto leftDimensionality=lDim;\
+        static constexpr auto rightDimensionality=rDim;\
         template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
             return load(forEach, other);\
@@ -93,12 +111,12 @@ namespace alpaka::lockstep
         }\
     };
 
-    BINARY_READONLY_OP(Addition, +)
-    BINARY_READONLY_OP(Subtraction, -)
-    BINARY_READONLY_OP(Multiplication, *)
-    BINARY_READONLY_OP(Division, /)
-    BINARY_READONLY_OP(ShiftRight, >>)
-    BINARY_READONLY_OP(ShiftLeft, <<)
+    BINARY_READONLY_OP(Addition, +, 1u, 1u)
+    BINARY_READONLY_OP(Subtraction, -, 1u, 1u)
+    BINARY_READONLY_OP(Multiplication, *, 1u, 1u)
+    BINARY_READONLY_OP(Division, /, 1u, 1u)
+    BINARY_READONLY_OP(ShiftRight, >>, 1u, 0u)
+    BINARY_READONLY_OP(ShiftLeft, <<, 1u, 0u)
 
 //clean up
 #undef BINARY_READONLY_OP
@@ -121,6 +139,8 @@ namespace alpaka::lockstep
             using LeftArg_t = T;
             using RightArg_t = T const;
         };
+        static constexpr auto leftDimensionality=1u;
+        static constexpr auto rightDimensionality=1u;
         template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
             return load(forEach, other);
@@ -179,17 +199,10 @@ namespace alpaka::lockstep
     XPR_FREE_OPERATOR(Subtraction, -)
     XPR_FREE_OPERATOR(Multiplication, *)
     XPR_FREE_OPERATOR(Division, /)
+    XPR_FREE_OPERATOR(ShiftLeft, <<)
+    XPR_FREE_OPERATOR(ShiftRight, >>)
 
 #undef XPR_FREE_OPERATOR
-/*
-    ///TODO add dimensionality to main Xpr class as well
-    template<typename T_Left, typename T_Right, std::enable_if_t< isXpr_v<T_Left>, int> = 0>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator<<(T_Left left, T_Right const& right){
-
-    }
-*/
-
-
 
     //shortcuts
     template<typename T_Functor, typename T>
@@ -218,6 +231,11 @@ namespace alpaka::lockstep
         {
             return m_source;
         }
+
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] SingleElemIndex const idx) const
+        {
+            return m_source;
+        }
     };
 
     //scalar, read-write node
@@ -238,6 +256,11 @@ namespace alpaka::lockstep
 
         template<uint32_t T_offset>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] ScalarLookupIndex<T_offset> const idx) const
+        {
+            return m_dest;
+        }
+
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] SingleElemIndex const idx) const
         {
             return m_dest;
         }
@@ -331,10 +354,10 @@ namespace alpaka::lockstep
         {
         }
 
-        template<typename T_Idx>
+        template<typename T_Idx, std::enable_if_t< T_Functor::leftDimensionality != 0u, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
         {
-            return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
+            return T_Functor::SIMD_EVAL_F(m_leftOperand[detail::DowngradeToDimensionality<T_Functor::leftDimensionality>::get(i)], m_rightOperand[detail::DowngradeToDimensionality<T_Functor::rightDimensionality>::get(i)]);
         }
 
         XPR_ASSIGN_OPERATOR
