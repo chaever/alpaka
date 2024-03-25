@@ -236,7 +236,8 @@ namespace alpaka::lockstep
     //scalar, read-only node
     template<typename T_Foreach, typename T_Elem, uint32_t T_stride>
     class ReadLeafXpr<T_Foreach, T_Elem, 0u, T_stride>{
-        T_Elem const& m_source;
+        ///TODO we always make a copy here, but if the value passed to the constructor is a const ref to some outside object that has the same lifetime as *this , we could save by const&
+        T_Elem const m_source;
     public:
         T_Foreach const& m_forEach;
 
@@ -418,7 +419,7 @@ namespace alpaka::lockstep
     }
 
     //single element, broadcasted if required
-    template<typename T_ForEach, typename T_Elem>
+    template<typename T_ForEach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_ForEach const& forEach, T_Elem const & elem){
         return ReadLeafXpr<T_ForEach, T_Elem, 0u, 0u>(forEach, elem);
     }
@@ -437,7 +438,7 @@ namespace alpaka::lockstep
         return ReadLeafXpr<T_Foreach<T_Worker, T_Config>, T_Elem, 1u, stride>(forEach, ctxVar);
     }
 
-    template<typename T_ForEach, typename T_Elem>
+    template<typename T_ForEach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_ForEach const& forEach, T_Elem & elem){
         return WriteLeafXpr<T_ForEach, T_Elem, 0u, 0u>(forEach, elem);
     }
