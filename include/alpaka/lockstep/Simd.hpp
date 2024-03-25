@@ -12,7 +12,8 @@ namespace alpaka::lockstep
         class ScalarSimdTag{};
         class ArrayOf4Tag{};
         class StdSimdTag{};
-        class StdSimdFourTimesTag{};
+        template<uint32_t T_simdMult>
+        class StdSimdNTimesTag{};
 
     }
 
@@ -67,12 +68,14 @@ namespace alpaka::lockstep
         }
     };
 
-    //std::experimental::simd, but 4 at a time
-    template<typename T_Elem>
-    struct SimdInterface<T_Elem, simdBackendTags::StdSimdFourTimesTag>{
+    //std::experimental::simd, but N at a time
+    template<typename T_Elem, uint32_t T_simdMult>
+    struct SimdInterface<T_Elem, simdBackendTags::StdSimdNTimesTag<T_simdMult>>{
         using Elem_t = T_Elem;
         static constexpr auto sizeOfNativePack = std::experimental::simd<T_Elem, std::experimental::simd_abi::native<T_Elem> >::size();
-        using Pack_t =std::experimental::simd<T_Elem, std::experimental::simd_abi::fixed_size<sizeOfNativePack*4> >;
+        using Pack_t = std::experimental::simd<T_Elem, std::experimental::simd_abi::fixed_size<sizeOfNativePack*T_simdMult> >;
+
+        static_assert(T_simdMult>1u, "Tried to use StdSimdNTimesTag<T_simdMult> with T_simdMult=1. Use StdSimdTag in this case.");
 
         inline static constexpr std::size_t laneCount = Pack_t::size();
 
@@ -130,7 +133,7 @@ namespace alpaka::lockstep
 #elif defined COMPILE_OPTION_FROM_CMAKE_2
         using SelectedSimdBackendTag = simdBackendTags::ArrayOf4Tag;
 #elif 1 || defined COMPILE_OPTION_FROM_CMAKE_3
-        using SelectedSimdBackendTag = simdBackendTags::StdSimdFourTimesTag;
+        using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<2>;
 #else
         using SelectedSimdBackendTag = simdBackendTags::ScalarSimdTag;
 #endif
