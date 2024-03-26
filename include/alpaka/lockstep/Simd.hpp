@@ -145,7 +145,7 @@ namespace alpaka::lockstep
 
     //lane count for any type T, using the selected SIMD backend
     template<typename T_Type>
-    static constexpr size_t laneCount = SimdInterface_t<T_Type>::laneCount;
+    static constexpr size_t laneCount_v = SimdInterface_t<T_Type>::laneCount;
 
     template<typename T_Type>
     using Pack_t = typename SimdInterface_t<T_Type>::Pack_t;
