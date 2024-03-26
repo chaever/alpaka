@@ -412,17 +412,29 @@ namespace alpaka::lockstep
 
             //std::cout << "evaluateExpression: running " << simdLoops << " simdLoops and " << (domainSize - simdLoops*lanes*numWorkers) << " scalar loops." << std::endl;
 
-            for(std::size_t i = 0u; i<simdLoops; ++i){
+            for(uint32_t i = 0u; i<simdLoops; ++i){
                 //std::cout << "evaluateExpression: starting vectorLoop " << i << std::endl;
                 //uses the operator[] that returns const Pack_t
-                xpr[SimdLookupIndex(i)];
+                xpr[SimdLookupIndex{i}];
                 //std::cout << "evaluateExpression: finished vectorLoop " << i << std::endl;
             }
-            for(std::size_t i = 0u; i<(domainSize-elementsProcessedBySimd); ++i){
+            for(uint32_t i = 0u; i<(domainSize-elementsProcessedBySimd); ++i){
                 //std::cout << "evaluateExpression: starting scalarLoop " << i << std::endl;
                 //uses the operator[] that returns const T_Elem &
-                xpr[ScalarLookupIndex<elementsProcessedBySimd>(i)];
+                xpr[ScalarLookupIndex<elementsProcessedBySimd>{i}];
             }
+        }
+
+        template<typename T_Xpr>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto evalToCtxVar(T_Xpr const& xpr){
+
+            using Elem_t = std::decay_t<decltype(xpr[ScalarLookupIndex<0u>{0u}])>;
+            auto const& forEach = xpr.m_forEach;
+            using ContextVar_t = Variable<Elem_t, typename std::decay_t<decltype(forEach)>::BaseConfig>;
+
+            ContextVar_t tmp;
+            evaluateExpression<Elem_t>(store(forEach, tmp) = xpr);
+            return tmp;
         }
 
         //single element, broadcasted if required
