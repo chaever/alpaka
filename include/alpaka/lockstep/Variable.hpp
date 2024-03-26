@@ -104,10 +104,10 @@ namespace alpaka
             /** @} */
 
             template<typename T_Foreach, typename T_Elem, uint32_t T_dimensions, uint32_t T_stride>
-            friend class ReadLeafXpr;
+            friend class expr::ReadLeafXpr;
 
             template<typename T_Foreach, typename T_Elem, uint32_t T_dimensions, uint32_t T_stride>
-            friend class WriteLeafXpr;
+            friend class expr::WriteLeafXpr;
 
         private:
             template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
