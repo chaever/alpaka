@@ -311,7 +311,7 @@ namespace alpaka::lockstep
 
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex const idx) const
         {
-            return SimdInterface_t<T_Elem>::loadUnaligned(&m_source + laneCount<T_Elem> * (m_forEach.getWorker().getWorkerIdx() + T_stride * static_cast<uint32_t>(idx)));
+            return SimdInterface_t<T_Elem>::loadUnaligned(&m_source + laneCount_v<T_Elem> * (m_forEach.getWorker().getWorkerIdx() + T_stride * static_cast<uint32_t>(idx)));
         }
 
         template<uint32_t T_offset>
@@ -352,7 +352,7 @@ namespace alpaka::lockstep
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](SimdLookupIndex const idx) const
         {
             auto const& worker = m_forEach.getWorker();
-            return (&m_dest)[laneCount<T_Elem> * (worker.getWorkerIdx() + T_stride * static_cast<uint32_t>(idx))];
+            return (&m_dest)[laneCount_v<T_Elem> * (worker.getWorkerIdx() + T_stride * static_cast<uint32_t>(idx))];
         }
 
         XPR_ASSIGN_OPERATOR
@@ -393,7 +393,7 @@ namespace alpaka::lockstep
     template<typename T_Elem, typename T_Xpr>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void evaluateExpression(T_Xpr const& xpr)
     {
-        constexpr auto lanes = laneCount<T_Elem>;
+        constexpr auto lanes = laneCount_v<T_Elem>;
         constexpr auto numWorkers = std::decay_t<decltype(xpr.m_forEach.getWorker())>::numWorkers;
         constexpr auto domainSize = std::decay_t<decltype(xpr.m_forEach)>::domainSize;
 
