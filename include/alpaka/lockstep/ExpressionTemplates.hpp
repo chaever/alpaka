@@ -113,11 +113,6 @@ namespace alpaka::lockstep
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 return left shortFunc right;\
             }\
-            template<typename T>\
-            struct OperandXprTrait{\
-                using LeftArg_t = T const;\
-                using RightArg_t = T const;\
-            };\
             template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
                 return alpaka::lockstep::expr::load(forEach, other);\
@@ -161,11 +156,6 @@ namespace alpaka::lockstep
                 /*std::cout << "Assignment<Scalar>::operator[]: before writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;*/
                 return left = right;
             }
-            template<typename T>
-            struct OperandXprTrait{
-                using LeftArg_t = T;
-                using RightArg_t = T const;
-            };
             template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){
                 return expr::load(forEach, other);
@@ -233,12 +223,6 @@ namespace alpaka::lockstep
         XPR_FREE_OPERATOR(ShiftRight, >>)
 
 #undef XPR_FREE_OPERATOR
-
-        //shortcuts
-        template<typename T_Functor, typename T>
-        using XprArgLeft_t = typename T_Functor::template OperandXprTrait<T>::LeftArg_t;
-        template<typename T_Functor, typename T>
-        using XprArgRight_t = typename T_Functor::template OperandXprTrait<T>::LeftArg_t;
 
         //scalar, read-only node
         template<typename T_Foreach, typename T_Elem, uint32_t T_stride>
@@ -371,17 +355,12 @@ namespace alpaka::lockstep
         //const left operand, cannot assign
         template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
         class Xpr{
-
-            //left&right with constness added as required by the Functor
-            using T_Left_const_t = XprArgLeft_t<T_Functor, T_Left>;
-            using T_Right_const_t = XprArgRight_t<T_Functor, T_Right>;
-
-            T_Left_const_t m_leftOperand;
-            T_Right_const_t m_rightOperand;
+            T_Left m_leftOperand;
+            T_Right m_rightOperand;
         public:
             T_Foreach const& m_forEach;
 
-            Xpr(T_Left_const_t left, T_Right_const_t right):m_leftOperand(left), m_rightOperand(right), m_forEach(left.m_forEach)
+            Xpr(T_Left left, T_Right right):m_leftOperand(left), m_rightOperand(right), m_forEach(left.m_forEach)
             {
             }
 
