@@ -20,7 +20,7 @@ namespace alpaka::lockstep
     {
         //forward declarations
         template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
-        class Xpr;
+        class BinaryXpr;
         template<typename T_Foreach, typename T_Elem, uint32_t T_dimensions, uint32_t T_stride>
         class ReadLeafXpr;
         template<typename T_Foreach, typename T_Elem, uint32_t T_dimensions, uint32_t T_stride>
@@ -52,7 +52,7 @@ namespace alpaka::lockstep
             };
 
             template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
-            struct IsXpr<Xpr<T_Functor, T_Left, T_Right, T_Foreach, T_dimensions>>{
+            struct IsXpr<BinaryXpr<T_Functor, T_Left, T_Right, T_Foreach, T_dimensions>>{
                 static constexpr bool value = true;
             };
 
@@ -70,7 +70,7 @@ namespace alpaka::lockstep
             struct GetXprDims;
 
             template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
-            struct GetXprDims<Xpr<T_Functor, T_Left, T_Right, T_Foreach, T_dimensions>>{
+            struct GetXprDims<BinaryXpr<T_Functor, T_Left, T_Right, T_Foreach, T_dimensions>>{
                 static constexpr auto value = T_dimensions;
             };
 
@@ -124,6 +124,10 @@ namespace alpaka::lockstep
         BINARY_READONLY_OP(BitwiseOr, |)
         BINARY_READONLY_OP(ShiftRight, >>)
         BINARY_READONLY_OP(ShiftLeft, <<)
+        BINARY_READONLY_OP(LessThen, <)
+        BINARY_READONLY_OP(GreaterThen, >)
+        BINARY_READONLY_OP(And, &&)
+        BINARY_READONLY_OP(Or, ||)
 
 //clean up
 #undef BINARY_READONLY_OP
@@ -162,7 +166,7 @@ namespace alpaka::lockstep
 //needed since there is no space between "operator" and "+" in "operator+"
 #define XPR_OP_WRAPPER() operator
 
-//for operator definitions inside the Xpr classes (=, +=, *= etc are not allowed as non-member functions).
+//for operator definitions inside the BinaryXpr classes (=, +=, *= etc are not allowed as non-member functions).
 //Expression must be the lefthand operand(this).
 #define XPR_ASSIGN_OPERATOR\
         template<typename T_Other>\
@@ -170,7 +174,7 @@ namespace alpaka::lockstep
         {\
             auto rightXpr = Assignment::makeRightXprFromContainer(other, m_forEach);\
             constexpr auto resultDims = getXprDims_v<decltype(*this)>;\
-            return Xpr<Assignment, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach, resultDims>(*this, rightXpr);\
+            return BinaryXpr<Assignment, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach, resultDims>(*this, rightXpr);\
         }
 //uses the assign above and one other operator to emulate a third (a+=b -> a=a+b)
 #define XPR_MEMEBR_OPERATOR_SPLIT(nameWithoutAssign, shortFuncWithAssign, shortFuncWithoutAssign)\
@@ -188,14 +192,14 @@ namespace alpaka::lockstep
         {\
             auto rightXpr = name::makeRightXprFromContainer(right, left.m_forEach);\
             constexpr auto resultDims = getXprDims_v<T_Left>;\
-            return Xpr<name, T_Left, decltype(rightXpr), decltype(left.m_forEach), resultDims>(left, rightXpr);\
+            return BinaryXpr<name, T_Left, decltype(rightXpr), decltype(left.m_forEach), resultDims>(left, rightXpr);\
         }\
         template<typename T_Left, typename T_Right, std::enable_if_t<!isXpr_v<T_Left> && isXpr_v<T_Right>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left const& left, T_Right right)\
         {\
             auto leftXpr = name::makeLeftXprFromContainer(left, right.m_forEach);\
             constexpr auto resultDims = getXprDims_v<decltype(leftXpr)>;\
-            return Xpr<name, decltype(leftXpr), T_Right, decltype(right.m_forEach), resultDims>(leftXpr, right);\
+            return BinaryXpr<name, decltype(leftXpr), T_Right, decltype(right.m_forEach), resultDims>(leftXpr, right);\
         }
 
         XPR_FREE_OPERATOR(Addition, +)
@@ -206,6 +210,10 @@ namespace alpaka::lockstep
         XPR_FREE_OPERATOR(BitwiseOr, |)
         XPR_FREE_OPERATOR(ShiftLeft, <<)
         XPR_FREE_OPERATOR(ShiftRight, >>)
+        XPR_FREE_OPERATOR(LessThen, <)
+        XPR_FREE_OPERATOR(GreaterThen, >)
+        XPR_FREE_OPERATOR(And, &&)
+        XPR_FREE_OPERATOR(Or, ||)
 
 #undef XPR_FREE_OPERATOR
 
@@ -372,13 +380,13 @@ namespace alpaka::lockstep
 
         //const left operand, cannot assign
         template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
-        class Xpr{
+        class BinaryXpr{
             T_Left m_leftOperand;
             T_Right m_rightOperand;
         public:
             T_Foreach const& m_forEach;
 
-            Xpr(T_Left left, T_Right right):m_leftOperand(left), m_rightOperand(right), m_forEach(left.m_forEach)
+            BinaryXpr(T_Left left, T_Right right):m_leftOperand(left), m_rightOperand(right), m_forEach(left.m_forEach)
             {
             }
 
