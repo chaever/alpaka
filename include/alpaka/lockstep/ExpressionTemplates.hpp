@@ -21,31 +21,34 @@ namespace alpaka::lockstep
         //forward declarations
         template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
         class BinaryXpr;
+        template<typename T_Functor, typename T_Operand, typename T_Foreach, uint32_t T_dimensions>
+        class UnaryXpr;
         template<typename T_Foreach, typename T_Elem, uint32_t T_dimensions, uint32_t T_stride>
         class ReadLeafXpr;
         template<typename T_Foreach, typename T_Elem, uint32_t T_dimensions, uint32_t T_stride>
         class WriteLeafXpr;
 
-        template<typename T_ForEach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
-        constexpr auto load(T_ForEach const& forEach, T_Elem const & elem);
+        template<typename T_Foreach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
+        constexpr auto load(T_Foreach const& forEach, T_Elem const & elem);
 
-        template<typename T_ForEach, typename T_Elem>
-        constexpr auto load(T_ForEach const& forEach, T_Elem const * const ptr);
+        template<typename T_Foreach, typename T_Elem>
+        constexpr auto load(T_Foreach const& forEach, T_Elem const * const ptr);
 
         template<template<typename, typename> typename T_Foreach, template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
         constexpr auto load(T_Foreach<T_Worker, T_Config> const& forEach, T_Variable<T_Elem, T_Config> const& ctxVar);
 
-        template<typename T_ForEach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
-        constexpr auto store(T_ForEach const& forEach, T_Elem & elem);
+        template<typename T_Foreach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
+        constexpr auto store(T_Foreach const& forEach, T_Elem & elem);
 
-        template<typename T_ForEach, typename T_Elem>
-        constexpr auto store(T_ForEach const& forEach, T_Elem * const ptr);
+        template<typename T_Foreach, typename T_Elem>
+        constexpr auto store(T_Foreach const& forEach, T_Elem * const ptr);
 
         template<template<typename, typename> typename T_Foreach, template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
         constexpr auto store(T_Foreach<T_Worker, T_Config> const& forEach, T_Variable<T_Elem, T_Config> & ctxVar);
 
         namespace detail
         {
+            //true if T is an expression type, false otherwise.
             template<typename T>
             struct IsXpr{
                 static constexpr bool value = false;
@@ -53,6 +56,11 @@ namespace alpaka::lockstep
 
             template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
             struct IsXpr<BinaryXpr<T_Functor, T_Left, T_Right, T_Foreach, T_dimensions>>{
+                static constexpr bool value = true;
+            };
+
+            template<typename T_Functor, typename T_Operand, typename T_Foreach, uint32_t T_dimensions>
+            struct IsXpr<UnaryXpr<T_Functor, T_Operand, T_Foreach, T_dimensions>>{
                 static constexpr bool value = true;
             };
 
@@ -66,11 +74,18 @@ namespace alpaka::lockstep
                 static constexpr bool value = true;
             };
 
+            //returns the dimensionality of an expression.
+            //example: the expression that results form adding 2 vectorExpressions(each with dimensionality 1) will have dimensionality 1.
             template<typename T>
             struct GetXprDims;
 
             template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
             struct GetXprDims<BinaryXpr<T_Functor, T_Left, T_Right, T_Foreach, T_dimensions>>{
+                static constexpr auto value = T_dimensions;
+            };
+
+            template<typename T_Functor, typename T_Operand, typename T_Foreach, uint32_t T_dimensions>
+            struct GetXprDims<UnaryXpr<T_Functor, T_Operand, T_Foreach, T_dimensions>>{
                 static constexpr auto value = T_dimensions;
             };
 
@@ -378,6 +393,21 @@ namespace alpaka::lockstep
 
         };
 
+        template<typename T_Functor, typename T_Operand, typename T_Foreach, uint32_t T_dimensions>
+        class UnaryXpr{
+            T_Operand m_operand;
+        public:
+            T_Foreach const& m_forEach;
+
+            UnaryXpr(T_Operand operand):m_operand(operand), m_forEach(operand.m_forEach)
+            {
+            }
+
+            ///TODO operator[]
+
+
+        };
+
         //const left operand, cannot assign
         template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
         class BinaryXpr{
@@ -446,16 +476,16 @@ namespace alpaka::lockstep
         }
 
         //single element, broadcasted if required
-        template<typename T_ForEach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_ForEach const& forEach, T_Elem const & elem){
-            return ReadLeafXpr<T_ForEach, T_Elem, 0u, 0u>(forEach, elem);
+        template<typename T_Foreach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Foreach const& forEach, T_Elem const & elem){
+            return ReadLeafXpr<T_Foreach, T_Elem, 0u, 0u>(forEach, elem);
         }
 
         //pointer to threadblocks data
-        template<typename T_ForEach, typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_ForEach const& forEach, T_Elem const * const ptr){
+        template<typename T_Foreach, typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Foreach const& forEach, T_Elem const * const ptr){
             constexpr uint32_t stride = std::decay_t<decltype(forEach.getWorker())>::numWorkers;
-            return ReadLeafXpr<T_ForEach, T_Elem, 1u, stride>(forEach, ptr);
+            return ReadLeafXpr<T_Foreach, T_Elem, 1u, stride>(forEach, ptr);
         }
 
         //lockstep ctxVar
@@ -465,15 +495,15 @@ namespace alpaka::lockstep
             return ReadLeafXpr<T_Foreach<T_Worker, T_Config>, T_Elem, 1u, stride>(forEach, ctxVar);
         }
 
-        template<typename T_ForEach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_ForEach const& forEach, T_Elem & elem){
-            return WriteLeafXpr<T_ForEach, T_Elem, 0u, 0u>(forEach, elem);
+        template<typename T_Foreach, typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Foreach const& forEach, T_Elem & elem){
+            return WriteLeafXpr<T_Foreach, T_Elem, 0u, 0u>(forEach, elem);
         }
 
-        template<typename T_ForEach, typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_ForEach const& forEach, T_Elem * const ptr){
+        template<typename T_Foreach, typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Foreach const& forEach, T_Elem * const ptr){
             constexpr uint32_t stride = std::decay_t<decltype(forEach.getWorker())>::numWorkers;
-            return WriteLeafXpr<T_ForEach, T_Elem, 1u, stride>(forEach, ptr);
+            return WriteLeafXpr<T_Foreach, T_Elem, 1u, stride>(forEach, ptr);
         }
 
         template<template<typename, typename> typename T_Foreach, template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
