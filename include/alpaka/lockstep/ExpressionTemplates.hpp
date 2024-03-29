@@ -66,21 +66,6 @@ namespace alpaka::lockstep
                 static constexpr bool value = true;
             };
 
-            template<uint32_t T_dim>
-            struct DowngradeToDimensionality{
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
-                    return idx;
-                }
-            };
-            template<>
-            struct DowngradeToDimensionality<0u>{
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
-                    return SingleElemIndex{};
-                }
-            };
-
             template<typename T>
             struct GetXprDims;
 
@@ -223,6 +208,39 @@ namespace alpaka::lockstep
         XPR_FREE_OPERATOR(ShiftRight, >>)
 
 #undef XPR_FREE_OPERATOR
+
+        namespace detail
+        {
+            template<typename T_Functor, uint32_t T_dimLeft, uint32_t T_dimRight>
+            struct DowngradeToDimensionality{
+                template<typename T_Idx>
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) left(T_Idx const & idx){
+                    return idx;
+                }
+                template<typename T_Idx>
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) right(T_Idx const & idx){
+                    return idx;
+                }
+            };
+
+#define DOWNGRADE_LEFT(OP, DIM_LEFT, DIM_RIGHT)\
+            template<>\
+            struct DowngradeToDimensionality<OP, DIM_LEFT, DIM_RIGHT>{\
+                template<typename T_Idx>\
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) left(T_Idx const & idx){\
+                    return idx;\
+                }\
+                template<typename T_Idx>\
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) right(T_Idx const & idx){\
+                    return SingleElemIndex{};\
+                }\
+            };
+
+            DOWNGRADE_LEFT(ShiftLeft, 1u, 0u)
+            DOWNGRADE_LEFT(ShiftRight, 1u, 0u)
+
+#undef DOWNGRADE_LEFT
+        }
 
         //scalar, read-only node
         template<typename T_Foreach, typename T_Elem, uint32_t T_stride>
@@ -367,7 +385,10 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
-                return T_Functor::SIMD_EVAL_F(m_leftOperand[detail::DowngradeToDimensionality<getXprDims_v<T_Left>>::get(i)], m_rightOperand[detail::DowngradeToDimensionality<getXprDims_v<T_Right>>::get(i)]);
+                constexpr auto leftDim = getXprDims_v<T_Left>;
+                constexpr auto rightDim = getXprDims_v<T_Right>;
+                using DowngradeAsNeccessary = detail::DowngradeToDimensionality<T_Functor, leftDim, rightDim>;
+                return T_Functor::SIMD_EVAL_F(m_leftOperand[DowngradeAsNeccessary::left(i)], m_rightOperand[DowngradeAsNeccessary::right(i)]);
             }
 
             XPR_ASSIGN_OPERATOR
