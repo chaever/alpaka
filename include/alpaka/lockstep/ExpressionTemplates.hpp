@@ -131,6 +131,22 @@ namespace alpaka::lockstep
             }\
         };
 
+#define UNARY_READONLY_OP_PREFIX(name, shortFunc)\
+        struct name{\
+            template<typename T_Operand>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Operand const& operand){\
+                return shortFunc operand;\
+            }\
+        };
+
+#define UNARY_READONLY_OP_POSTFIX(name, shortFunc)\
+        struct name{\
+            template<typename T_Operand>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Operand const& operand){\
+                return operand shortFunc;\
+            }\
+        };
+
         BINARY_READONLY_OP(Addition, +)
         BINARY_READONLY_OP(Subtraction, -)
         BINARY_READONLY_OP(Multiplication, *)
@@ -144,8 +160,16 @@ namespace alpaka::lockstep
         BINARY_READONLY_OP(And, &&)
         BINARY_READONLY_OP(Or, ||)
 
+        UNARY_READONLY_OP_PREFIX(BitwiseInvert, ~)
+        UNARY_READONLY_OP_PREFIX(Negation, !)
+        UNARY_READONLY_OP_PREFIX(PreIncrement, ++)
+
+        UNARY_READONLY_OP_POSTFIX(PostIncrement, ++)
+
 //clean up
 #undef BINARY_READONLY_OP
+#undef UNARY_READONLY_OP_PREFIX
+#undef UNARY_READONLY_OP_POSTFIX
 
         struct Assignment{
             template<typename T_Left, typename T_Right, std::enable_if_t< std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
@@ -191,6 +215,7 @@ namespace alpaka::lockstep
             constexpr auto resultDims = getXprDims_v<decltype(*this)>;\
             return BinaryXpr<Assignment, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach, resultDims>(*this, rightXpr);\
         }
+
 //uses the assign above and one other operator to emulate a third (a+=b -> a=a+b)
 #define XPR_MEMEBR_OPERATOR_SPLIT(nameWithoutAssign, shortFuncWithAssign, shortFuncWithoutAssign)\
         template<typename T_Other>\
@@ -201,7 +226,7 @@ namespace alpaka::lockstep
         }
 
 //free operator definitions. Use these when possible. Expression can be the left or right operand.
-#define XPR_FREE_OPERATOR(name, shortFunc)\
+#define XPR_FREE_BINARY_OPERATOR(name, shortFunc)\
         template<typename T_Left, typename T_Right, std::enable_if_t< isXpr_v<T_Left>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left left, T_Right const& right)\
         {\
@@ -217,25 +242,56 @@ namespace alpaka::lockstep
             return BinaryXpr<name, decltype(leftXpr), T_Right, decltype(right.m_forEach), resultDims>(leftXpr, right);\
         }
 
-        XPR_FREE_OPERATOR(Addition, +)
-        XPR_FREE_OPERATOR(Subtraction, -)
-        XPR_FREE_OPERATOR(Multiplication, *)
-        XPR_FREE_OPERATOR(Division, /)
-        XPR_FREE_OPERATOR(BitwiseAnd, &)
-        XPR_FREE_OPERATOR(BitwiseOr, |)
-        XPR_FREE_OPERATOR(ShiftLeft, <<)
-        XPR_FREE_OPERATOR(ShiftRight, >>)
-        XPR_FREE_OPERATOR(LessThen, <)
-        XPR_FREE_OPERATOR(GreaterThen, >)
-        XPR_FREE_OPERATOR(And, &&)
-        XPR_FREE_OPERATOR(Or, ||)
 
-#undef XPR_FREE_OPERATOR
+#define XPR_FREE_UNARY_OPERATOR_PREFIX(name, shortFunc)\
+        template<typename T_Operand, std::enable_if_t<isXpr_v<T_Operand>, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Operand operand)\
+        {\
+            constexpr auto resultDims = getXprDims_v<T_Operand>;\
+            return UnaryXpr<name, T_Operand, decltype(operand.m_forEach), resultDims>(operand);\
+        }
+
+#define XPR_FREE_UNARY_OPERATOR_POSTFIX(name, shortFunc)\
+        template<typename T_Operand, std::enable_if_t<isXpr_v<T_Operand>, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Operand operand, int neededForPrefixAndPostfixDistinction)\
+        {\
+            constexpr auto resultDims = getXprDims_v<T_Operand>;\
+            return UnaryXpr<name, T_Operand, decltype(operand.m_forEach), resultDims>(operand);\
+        }
+
+        XPR_FREE_BINARY_OPERATOR(Addition, +)
+        XPR_FREE_BINARY_OPERATOR(Subtraction, -)
+        XPR_FREE_BINARY_OPERATOR(Multiplication, *)
+        XPR_FREE_BINARY_OPERATOR(Division, /)
+        XPR_FREE_BINARY_OPERATOR(BitwiseAnd, &)
+        XPR_FREE_BINARY_OPERATOR(BitwiseOr, |)
+        XPR_FREE_BINARY_OPERATOR(ShiftLeft, <<)
+        XPR_FREE_BINARY_OPERATOR(ShiftRight, >>)
+        XPR_FREE_BINARY_OPERATOR(LessThen, <)
+        XPR_FREE_BINARY_OPERATOR(GreaterThen, >)
+        XPR_FREE_BINARY_OPERATOR(And, &&)
+        XPR_FREE_BINARY_OPERATOR(Or, ||)
+
+        XPR_FREE_UNARY_OPERATOR_PREFIX(BitwiseInvert, ~)
+        XPR_FREE_UNARY_OPERATOR_PREFIX(Negation, !)
+        XPR_FREE_UNARY_OPERATOR_PREFIX(PreIncrement, ++)
+
+        XPR_FREE_UNARY_OPERATOR_POSTFIX(PostIncrement, ++)
+
+#undef XPR_FREE_UNARY_OPERATOR_PREFIX
+#undef XPR_FREE_UNARY_OPERATOR_POSTFIX
 
         namespace detail
         {
+            //downgrading of SimdLookupIndex/ScalarLookupIndex to SingleElemIndex when required.
+            //Needed because std::simd's operator<< only accepts Pack<int> as the right operand,
+            //or any type that is implictly castable to int (which is far more flexible but not the default). To get around this isssue, we
+            //downgrade here to call operator<< with Pack and a single element of integral type.
+            //By doing
+
+            //Default: just forward the required idx type
             template<typename T_Functor, uint32_t T_dimLeft, uint32_t T_dimRight>
-            struct DowngradeToDimensionality{
+            struct DowngradeToDimensionality2D{
                 template<typename T_Idx>
                 ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) left(T_Idx const & idx){
                     return idx;
@@ -246,9 +302,22 @@ namespace alpaka::lockstep
                 }
             };
 
+            //Expressions with 2 scalar-only children do not need SIMD evaluation.
+            template<typename T_Functor>
+            struct DowngradeToDimensionality2D<T_Functor, 0u, 0u>{
+                template<typename T_Idx>
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) left(T_Idx const & idx){
+                    return SingleElemIndex{};
+                }
+                template<typename T_Idx>
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) right(T_Idx const & idx){
+                    return SingleElemIndex{};
+                }
+            };
+
 #define DOWNGRADE_LEFT(OP, DIM_LEFT, DIM_RIGHT)\
             template<>\
-            struct DowngradeToDimensionality<OP, DIM_LEFT, DIM_RIGHT>{\
+            struct DowngradeToDimensionality2D<OP, DIM_LEFT, DIM_RIGHT>{\
                 template<typename T_Idx>\
                 ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) left(T_Idx const & idx){\
                     return idx;\
@@ -259,11 +328,29 @@ namespace alpaka::lockstep
                 }\
             };
 
+            //prevent broadcasting of righthand side scalars when using shift operators
             DOWNGRADE_LEFT(ShiftLeft, 1u, 0u)
             DOWNGRADE_LEFT(ShiftRight, 1u, 0u)
 
 #undef DOWNGRADE_LEFT
-        }
+
+            template<typename T_Functor, uint32_t T_dim>
+            struct DowngradeToDimensionality1D{
+                template<typename T_Idx>
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
+                    return idx;
+                }
+            };
+
+            //Expressions with scalar-only children do not need SIMD evaluation.
+            template<typename T_Functor>
+            struct DowngradeToDimensionality1D<T_Functor, 0u>{
+                template<typename T_Idx>
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
+                    return SingleElemIndex{};
+                }
+            };
+        } // namespace detail
 
         //scalar, read-only node
         template<typename T_Foreach, typename T_Elem, uint32_t T_stride>
@@ -403,9 +490,13 @@ namespace alpaka::lockstep
             {
             }
 
-            ///TODO operator[]
-
-
+            template<typename T_Idx>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
+            {
+                constexpr auto dim = getXprDims_v<T_Operand>;
+                using DowngradeAsNeccessary = detail::DowngradeToDimensionality1D<T_Functor, dim>;
+                return T_Functor::SIMD_EVAL_F(m_operand[DowngradeAsNeccessary::get(i)]);
+            }
         };
 
         //const left operand, cannot assign
@@ -425,7 +516,7 @@ namespace alpaka::lockstep
             {
                 constexpr auto leftDim = getXprDims_v<T_Left>;
                 constexpr auto rightDim = getXprDims_v<T_Right>;
-                using DowngradeAsNeccessary = detail::DowngradeToDimensionality<T_Functor, leftDim, rightDim>;
+                using DowngradeAsNeccessary = detail::DowngradeToDimensionality2D<T_Functor, leftDim, rightDim>;
                 return T_Functor::SIMD_EVAL_F(m_leftOperand[DowngradeAsNeccessary::left(i)], m_rightOperand[DowngradeAsNeccessary::right(i)]);
             }
 
