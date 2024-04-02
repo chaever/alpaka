@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Simd.hpp"
+#include <cmath>
 
 namespace alpaka::lockstep
 {
@@ -147,6 +148,14 @@ namespace alpaka::lockstep
             }\
         };
 
+#define UNARY_FREE_FUNCTION(name, internalFunc)\
+        struct name{\
+            template<typename T_Operand>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Operand const& operand){\
+                return internalFunc (operand);\
+            }\
+        };
+
         BINARY_READONLY_OP(Addition, +)
         BINARY_READONLY_OP(Subtraction, -)
         BINARY_READONLY_OP(Multiplication, *)
@@ -166,10 +175,13 @@ namespace alpaka::lockstep
 
         UNARY_READONLY_OP_POSTFIX(PostIncrement, ++)
 
+        UNARY_FREE_FUNCTION(Absolute, std::abs)
+
 //clean up
 #undef BINARY_READONLY_OP
 #undef UNARY_READONLY_OP_PREFIX
 #undef UNARY_READONLY_OP_POSTFIX
+#undef UNARY_FREE_FUNCTION
 
         struct Assignment{
             template<typename T_Left, typename T_Right, std::enable_if_t< std::is_same_v<T_Right, Pack_t<T_Left>>, int> = 0>
@@ -231,14 +243,14 @@ namespace alpaka::lockstep
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left left, T_Right const& right)\
         {\
             auto rightXpr = name::makeRightXprFromContainer(right, left.m_forEach);\
-            constexpr auto resultDims = getXprDims_v<T_Left>;\
+            constexpr auto resultDims = std::max(getXprDims_v<T_Left>, getXprDims_v<std::decay_t<decltype(rightXpr)>>);\
             return BinaryXpr<name, T_Left, decltype(rightXpr), decltype(left.m_forEach), resultDims>(left, rightXpr);\
         }\
         template<typename T_Left, typename T_Right, std::enable_if_t<!isXpr_v<T_Left> && isXpr_v<T_Right>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left const& left, T_Right right)\
         {\
             auto leftXpr = name::makeLeftXprFromContainer(left, right.m_forEach);\
-            constexpr auto resultDims = getXprDims_v<decltype(leftXpr)>;\
+            constexpr auto resultDims = std::max(getXprDims_v<T_Right>, getXprDims_v<std::decay_t<decltype(leftXpr)>>);\
             return BinaryXpr<name, decltype(leftXpr), T_Right, decltype(right.m_forEach), resultDims>(leftXpr, right);\
         }
 
@@ -257,6 +269,14 @@ namespace alpaka::lockstep
         {\
             constexpr auto resultDims = getXprDims_v<T_Operand>;\
             return UnaryXpr<name, T_Operand, decltype(operand.m_forEach), resultDims>(operand);\
+        }
+
+#define XPR_UNARY_FREE_FUNCTION(name, internalFunc)\
+        template<typename T_Operand, std::enable_if_t<alpaka::lockstep::expr::isXpr_v<T_Operand>, int> = 0>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto internalFunc(T_Operand operand)\
+        {\
+            constexpr auto resultDims = alpaka::lockstep::expr::getXprDims_v<T_Operand>;\
+            return alpaka::lockstep::expr::UnaryXpr<alpaka::lockstep::expr::name, T_Operand, decltype(operand.m_forEach), resultDims>(operand);\
         }
 
         XPR_FREE_BINARY_OPERATOR(Addition, +)
@@ -278,8 +298,19 @@ namespace alpaka::lockstep
 
         XPR_FREE_UNARY_OPERATOR_POSTFIX(PostIncrement, ++)
 
+    } // namespace expr
+} // namespace alpaka::lockstep
+
+        XPR_UNARY_FREE_FUNCTION(Absolute, std::abs)
+
+namespace alpaka::lockstep
+{
+    namespace expr
+    {
+
 #undef XPR_FREE_UNARY_OPERATOR_PREFIX
 #undef XPR_FREE_UNARY_OPERATOR_POSTFIX
+#undef XPR_UNARY_FREE_FUNCTION
 
         namespace detail
         {
@@ -287,7 +318,6 @@ namespace alpaka::lockstep
             //Needed because std::simd's operator<< only accepts Pack<int> as the right operand,
             //or any type that is implictly castable to int (which is far more flexible but not the default). To get around this isssue, we
             //downgrade here to call operator<< with Pack and a single element of integral type.
-            //By doing
 
             //Default: just forward the required idx type
             template<typename T_Functor, uint32_t T_dimLeft, uint32_t T_dimRight>
