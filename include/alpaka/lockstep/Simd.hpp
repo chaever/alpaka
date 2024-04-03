@@ -115,10 +115,10 @@ namespace alpaka::lockstep
             return Pack_t(elem);
         }
 
-        template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount>>
+        template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount, int> = 0>
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(std::experimental::simd<Source_Elem_t, Source_Abi_t> const& pack) -> Pack_t
         {
-            return std::experimental::simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
+            return std::experimental::static_simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
         }
     };
 
@@ -148,10 +148,10 @@ namespace alpaka::lockstep
             return Pack_t(elem);
         }
 
-        template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount>>
+        template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount, int> = 0>
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(std::experimental::simd<Source_Elem_t, Source_Abi_t> const& pack) -> Pack_t
         {
-            return std::experimental::simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
+            return std::experimental::static_simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
         }
     };
 
