@@ -110,13 +110,21 @@ namespace alpaka::lockstep
 //operations like +,-,*,/ that dont modify their operands
 #define BINARY_READONLY_OP(name, shortFunc)\
         struct name{\
-            template<typename T_Left, typename T_Right, typename T_Sfinae = void>\
+            /*for scalar values*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t<std::is_arithmetic_v<T_Left> || std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 return left shortFunc right;\
             }\
-            template<typename T_Left, typename T_Right, std::enable_if_t< (!std::is_same_v<T_Left, bool> && !std::is_same_v<T_Right, bool>), int> = 0 >\
+            /*for Packs*/\
+            /*template<typename T_Left, typename T_Right, std::enable_if_t< (!std::is_same_v<T_Left, bool> && !std::is_same_v<T_Right, bool>), int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(Pack_t<T_Left> const& left, Pack_t<T_Right> const& right){\
                 using result_elem_t = decltype(std::declval<T_Left>() shortFunc std::declval<T_Right>());\
+                return SimdInterface_t<result_elem_t>::elementWiseCastTo(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCastTo(right);\
+            }*/\
+            /*for Packs*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t< (!std::is_same_v<std::decay_t<decltype(std::declval<T_Left>()[0])>, bool> && !std::is_same_v<std::decay_t<decltype(std::declval<T_Right>()[0])>, bool>), int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                using result_elem_t = decltype(std::declval<T_Left>()[0] shortFunc std::declval<T_Right>()[0]);\
                 return SimdInterface_t<result_elem_t>::elementWiseCastTo(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCastTo(right);\
             }\
             template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
@@ -554,7 +562,7 @@ namespace alpaka::lockstep
                 constexpr auto leftDim = getXprDims_v<T_Left>;
                 constexpr auto rightDim = getXprDims_v<T_Right>;
                 using DowngradeAsNeccessary = detail::DowngradeToDimensionality2D<T_Functor, leftDim, rightDim>;
-                return T_Functor::SIMD_EVAL_F(m_leftOperand[DowngradeAsNeccessary::left(i)], m_rightOperand[DowngradeAsNeccessary::right(i)]);
+                return T_Functor/*<std::decay_t<decltype(m_leftOperand[ScalarLookupIndex<0u>(0u)])>, std::decay_t<decltype(m_rightOperand[ScalarLookupIndex<0u>(0u)])>>*/::SIMD_EVAL_F(m_leftOperand[DowngradeAsNeccessary::left(i)], m_rightOperand[DowngradeAsNeccessary::right(i)]);
             }
 
             XPR_ASSIGN_OPERATOR

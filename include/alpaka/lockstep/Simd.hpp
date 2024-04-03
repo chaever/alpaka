@@ -5,9 +5,41 @@
 #include <experimental/simd>
 #include <algorithm>
 
+//the following 2 operators/functions are features missing from std::simd that are needed.
+//if you get a compiler error that mentions that any of these functions are being re-declared/re-defined, delete the function as it is superflous at that point.
+
+//specific for std::simd, allows addition of Pack<T> and Pack<T>::mask which is not normally possible
+template<typename T_Elem, typename T_Abi>
+ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd<T_Elem, T_Abi> const& left, typename std::experimental::simd<T_Elem, T_Abi>::mask_type const& right)
+{
+    using Pack = std::experimental::simd<T_Elem, T_Abi>;
+    ///TODO once std::experimental::where supports it, make this constexpr
+    /*constexpr*/ Pack tmp(0);
+    std::experimental::where(right, tmp) = Pack(1);
+    return tmp;
+}
+
+template<typename T_Elem, typename T_Abi>
+ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(typename std::experimental::simd<T_Elem, T_Abi>::mask_type const& left, std::experimental::simd<T_Elem, T_Abi> const& right)
+{
+    //re-use other operator definition
+    return right+left;
+}
+
+//std::abs for floating-point-based simd-packs (currently not supported by default)
+template <typename T_Elem, typename T_Abi>
+std::enable_if_t<std::is_floating_point_v<T_Elem> && std::is_signed_v<T_Elem>, std::experimental::simd<T_Elem, T_Abi>>
+std::abs(const std::experimental::simd<T_Elem, T_Abi>& floatPack)
+{
+    using Pack = std::experimental::simd<T_Elem, T_Abi>;
+    Pack tmp{floatPack};
+    std::experimental::where(floatPack < 0, tmp) = Pack(-1) * floatPack;
+    return tmp;
+}
+
 namespace alpaka::lockstep
 {
-
+    //provides Information about the pack framework the user selected via CMake
     namespace simdBackendTags{
 
         class ScalarSimdTag{};
@@ -16,37 +48,16 @@ namespace alpaka::lockstep
         template<uint32_t T_simdMult>
         class StdSimdNTimesTag{};
 
-    }
-
-    //provides Information about the pack framework the user selected via CMake
-    namespace simdBackendTags{
-#if defined COMPILE_OPTION_FROM_CMAKE_1
+#if   0 || defined COMPILE_OPTION_FROM_CMAKE_1
         using SelectedSimdBackendTag = simdBackendTags::StdSimdTag;
-#elif defined COMPILE_OPTION_FROM_CMAKE_2
+#elif 0 || defined COMPILE_OPTION_FROM_CMAKE_2
         using SelectedSimdBackendTag = simdBackendTags::ArrayOf4Tag;
 #elif 1 || defined COMPILE_OPTION_FROM_CMAKE_3
         using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<2>;
 #else
         using SelectedSimdBackendTag = simdBackendTags::ScalarSimdTag;
 #endif
-    }
-
-    //specific for std::simd, allows addition of Pack<T> and Pack<T>::mask
-    template<typename T_Elem, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd<T_Elem, T_Abi> const& left, typename std::experimental::simd<T_Elem, T_Abi>::mask_type const& right)
-    {
-        using Pack = std::experimental::simd<T_Elem, T_Abi>;
-        ///TODO once std::experimental::where supports it, make this constexpr
-        /*constexpr*/ Pack tmp(0);
-        std::experimental::where(right, tmp) = Pack(1);
-        return tmp;
-    }
-    template<typename T_Elem, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(typename std::experimental::simd<T_Elem, T_Abi>::mask_type const& left, std::experimental::simd<T_Elem, T_Abi> const& right)
-    {
-        //re-use other operator definition
-        return right+left;
-    }
+    } // namespace simdBackendTags
 
     template<typename T_Elem, typename T_Simd>
     struct SimdInterface;
