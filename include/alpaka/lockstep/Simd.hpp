@@ -17,6 +17,23 @@ namespace alpaka::lockstep
 
     }
 
+    //specific for std::simd, allows addition of Pack<T> and Pack<T>::mask
+    template<typename T_Elem, typename T_Abi>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd<T_Elem, T_Abi> const& left, typename std::experimental::simd<T_Elem, T_Abi>::mask_type const& right)
+    {
+        using Pack = std::experimental::simd<T_Elem, T_Abi>;
+        ///TODO once std::experimental::where supports it, make this constexpr
+        /*constexpr*/ Pack tmp(0);
+        std::experimental::where(right, tmp) = Pack(1);
+        return tmp;
+    }
+    template<typename T_Elem, typename T_Abi>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(typename std::experimental::simd<T_Elem, T_Abi>::mask_type const& left, std::experimental::simd<T_Elem, T_Abi> const& right)
+    {
+        //re-use other operator definition
+        return right+left;
+    }
+
     template<typename T_Elem, typename T_Simd>
     struct SimdInterface;
 
