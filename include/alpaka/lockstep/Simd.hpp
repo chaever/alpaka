@@ -115,13 +115,11 @@ namespace alpaka::lockstep
             return Pack_t(elem);
         }
 
-        //std::experimental::simd_cast<>
-
-        /*template<typename Source_t, std::enable_if_t<laneCount_v<Source_t> == laneCount>>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(Source_t const& pack) -> Pack_t
+        template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount>>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(std::experimental::simd<Source_Elem_t, Source_Abi_t> const& pack) -> Pack_t
         {
-            return static_cast<T_Elem>(pack);
-        }*/
+            return std::experimental::simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
+        }
     };
 
     //std::experimental::simd, but N at a time
@@ -148,6 +146,12 @@ namespace alpaka::lockstep
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
         {
             return Pack_t(elem);
+        }
+
+        template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount>>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(std::experimental::simd<Source_Elem_t, Source_Abi_t> const& pack) -> Pack_t
+        {
+            return std::experimental::simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
         }
     };
 
@@ -178,7 +182,19 @@ namespace alpaka::lockstep
 
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
         {
-            return {elem, elem, elem, elem};
+            Pack_t tmp;
+            for(auto i=0u; i<laneCount; ++i)
+                tmp[i] = elem;
+            return tmp;
+        }
+
+        template<typename Source_t>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(Source_t const& pack) -> Pack_t
+        {
+            Pack_t tmp;
+            for(auto i=0u; i<laneCount; ++i)
+                tmp[i] = static_cast<T_Elem>(pack[i]);
+            return tmp;
         }
     };
 

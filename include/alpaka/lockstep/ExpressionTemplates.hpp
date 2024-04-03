@@ -107,9 +107,6 @@ namespace alpaka::lockstep
         template<typename T>
         static constexpr uint32_t getXprDims_v = detail::GetXprDims<std::decay_t<T>>::value;
 
-
-
-
 //operations like +,-,*,/ that dont modify their operands
 #define BINARY_READONLY_OP(name, shortFunc)\
         struct name{\
@@ -118,7 +115,7 @@ namespace alpaka::lockstep
                 return left shortFunc right;\
             }\
             template<typename T_Left, typename T_Right, std::enable_if_t< (laneCount_v<T_Left> == laneCount_v<T_Right> && !std::is_same_v<T_Left, bool> && !std::is_same_v<T_Right, bool>), int> = 0 >\
-            decltype(auto) SIMD_EVAL_F(Pack_t<T_Left> const& left, Pack_t<T_Right> const& right){\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(Pack_t<T_Left> const& left, Pack_t<T_Right> const& right){\
                 using result_elem_t = decltype(std::declval<T_Left>() shortFunc std::declval<T_Right>());\
                 return SimdInterface_t<result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCast(right);\
             }\
