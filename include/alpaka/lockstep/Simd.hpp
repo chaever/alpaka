@@ -7,6 +7,7 @@
 
 namespace alpaka::lockstep
 {
+
     namespace simdBackendTags{
 
         class ScalarSimdTag{};
@@ -15,6 +16,19 @@ namespace alpaka::lockstep
         template<uint32_t T_simdMult>
         class StdSimdNTimesTag{};
 
+    }
+
+    //provides Information about the pack framework the user selected via CMake
+    namespace simdBackendTags{
+#if defined COMPILE_OPTION_FROM_CMAKE_1
+        using SelectedSimdBackendTag = simdBackendTags::StdSimdTag;
+#elif defined COMPILE_OPTION_FROM_CMAKE_2
+        using SelectedSimdBackendTag = simdBackendTags::ArrayOf4Tag;
+#elif 1 || defined COMPILE_OPTION_FROM_CMAKE_3
+        using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<2>;
+#else
+        using SelectedSimdBackendTag = simdBackendTags::ScalarSimdTag;
+#endif
     }
 
     //specific for std::simd, allows addition of Pack<T> and Pack<T>::mask
@@ -37,6 +51,17 @@ namespace alpaka::lockstep
     template<typename T_Elem, typename T_Simd>
     struct SimdInterface;
 
+    //conforms to the SimdInterface class above
+    template<typename T_Type>
+    using SimdInterface_t = SimdInterface<T_Type, simdBackendTags::SelectedSimdBackendTag>;
+
+    //lane count for any type T, using the selected SIMD backend
+    template<typename T_Type>
+    static constexpr size_t laneCount_v = SimdInterface_t<T_Type>::laneCount;
+
+    template<typename T_Type>
+    using Pack_t = typename SimdInterface_t<T_Type>::Pack_t;
+
     //General-case SIMD interface, corresponds to a simdWidth of 1
     template<typename T_Elem>
     struct SimdInterface<T_Elem, simdBackendTags::ScalarSimdTag>{
@@ -58,6 +83,12 @@ namespace alpaka::lockstep
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
         {
             return elem;
+        }
+
+        template<typename Source_t>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(Source_t const& pack) -> Pack_t
+        {
+            return static_cast<T_Elem>(pack);
         }
     };
 
@@ -83,6 +114,14 @@ namespace alpaka::lockstep
         {
             return Pack_t(elem);
         }
+
+        //std::experimental::simd_cast<>
+
+        /*template<typename Source_t, std::enable_if_t<laneCount_v<Source_t> == laneCount>>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(Source_t const& pack) -> Pack_t
+        {
+            return static_cast<T_Elem>(pack);
+        }*/
     };
 
     //std::experimental::simd, but N at a time
@@ -142,30 +181,6 @@ namespace alpaka::lockstep
             return {elem, elem, elem, elem};
         }
     };
-
-    //provides Information about the pack framework the user selected via CMake
-    namespace simdBackendTags{
-#if defined COMPILE_OPTION_FROM_CMAKE_1
-        using SelectedSimdBackendTag = simdBackendTags::StdSimdTag;
-#elif defined COMPILE_OPTION_FROM_CMAKE_2
-        using SelectedSimdBackendTag = simdBackendTags::ArrayOf4Tag;
-#elif 1 || defined COMPILE_OPTION_FROM_CMAKE_3
-        using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<2>;
-#else
-        using SelectedSimdBackendTag = simdBackendTags::ScalarSimdTag;
-#endif
-    }
-
-    //conforms to the SimdInterface class above
-    template<typename T_Type>
-    using SimdInterface_t = SimdInterface<T_Type, simdBackendTags::SelectedSimdBackendTag>;
-
-    //lane count for any type T, using the selected SIMD backend
-    template<typename T_Type>
-    static constexpr size_t laneCount_v = SimdInterface_t<T_Type>::laneCount;
-
-    template<typename T_Type>
-    using Pack_t = typename SimdInterface_t<T_Type>::Pack_t;
 
     template<uint32_t T_offset = 0u>
     class ScalarLookupIndex{
