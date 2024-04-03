@@ -390,6 +390,8 @@ namespace alpaka::lockstep
         public:
             T_Foreach const& m_forEach;
 
+            static_assert(!std::is_same_v<bool, T_Elem>);
+
             ReadLeafXpr(T_Foreach const& forEach, T_Elem const& source) : m_source(source), m_forEach(forEach)
             {
             }
