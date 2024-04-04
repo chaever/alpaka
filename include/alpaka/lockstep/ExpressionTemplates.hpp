@@ -99,6 +99,24 @@ namespace alpaka::lockstep
             struct GetXprDims<WriteLeafXpr<T_Elem, T_Foreach, T_dimensions, T_stride>>{
                 static constexpr auto value = T_dimensions;
             };
+
+            //Default: just forward the required idx type
+            template<uint32_t T_dim>
+            struct DowngradeToDimensionality{
+                template<typename T_Idx>
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
+                    return idx;
+                }
+            };
+
+            //Do not access 0-dimensional Expressions with for example SIMD index types
+            template<>
+            struct DowngradeToDimensionality<0u>{
+                template<typename T_Idx>
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
+                    return SingleElemIndex{};
+                }
+            };
         } // namespace detail
 
         template<typename T>
@@ -107,25 +125,76 @@ namespace alpaka::lockstep
         template<typename T>
         static constexpr uint32_t getXprDims_v = detail::GetXprDims<std::decay_t<T>>::value;
 
-//operations like +,-,*,/ that dont modify their operands
+//operations like +,-,*,/ that dont modify their operands, and whose left scalar operands need to be broadcasted
 #define BINARY_READONLY_OP(name, shortFunc)\
         struct name{\
-            /*for scalar values*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t<std::is_arithmetic_v<T_Left> || std::is_arithmetic_v<T_Right>, int> = 0 >\
+            /*for Scalar op Scalar*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 return left shortFunc right;\
             }\
-            /*for Packs*/\
-            /*template<typename T_Left, typename T_Right, std::enable_if_t< (!std::is_same_v<T_Left, bool> && !std::is_same_v<T_Right, bool>), int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(Pack_t<T_Left> const& left, Pack_t<T_Right> const& right){\
-                using result_elem_t = decltype(std::declval<T_Left>() shortFunc std::declval<T_Right>());\
-                return SimdInterface_t<result_elem_t>::elementWiseCastTo(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCastTo(right);\
-            }*/\
-            /*for Packs*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t< (!std::is_same_v<std::decay_t<decltype(std::declval<T_Left>()[0])>, bool> && !std::is_same_v<std::decay_t<decltype(std::declval<T_Right>()[0])>, bool>), int> = 0 >\
+            /*for Pack op Pack*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                using result_elem_t = decltype(std::declval<T_Left>()[0] shortFunc std::declval<T_Right>()[0]);\
-                return SimdInterface_t<result_elem_t>::elementWiseCastTo(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCastTo(right);\
+                using result_elem_t = decltype(left[0] shortFunc right[0]);\
+                return SimdInterface_t<result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCast(right);\
+            }\
+            /*for Scalar op Pack*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                using result_elem_t = decltype(left    shortFunc right[0]);\
+                return SimdInterface_t<result_elem_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCast(right);\
+            }\
+            /*for Pack op Scalar*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                using result_elem_t = decltype(left[0] shortFunc right   );\
+                return SimdInterface_t<result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t>::broadcast(right);\
+            }\
+            template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+                return alpaka::lockstep::expr::load(forEach, other);\
+            }\
+            template<typename T_Other, typename T_Foreach, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+                return other;\
+            }\
+            template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other, T_Foreach const& forEach){\
+                return alpaka::lockstep::expr::load(forEach, other);\
+            }\
+            template<typename T_Other, typename T_Foreach, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other, T_Foreach const& forEach){\
+                return other;\
+            }\
+        };
+
+#define BINARY_READONLY_SHIFT_OP(name, shortFunc)\
+        struct name{\
+            /*for Scalar op Scalar*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                return left shortFunc right;\
+            }\
+            /*for Pack op Pack*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                using result_elem_t = decltype(left[0] shortFunc right[0]);\
+                return SimdInterface_t<result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCast(right);\
+            }\
+            /*for Scalar op Pack*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                using result_elem_t = decltype(left    shortFunc right[0]);\
+                return SimdInterface_t<result_elem_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCast(right);\
+            }\
+            /*for Pack op Scalar
+             * NOTE: shifts can be called with a single element (Pack_t<<4 is viable), therefore no broadcast happens below
+             */\
+            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                using result_elem_t = decltype(left[0] shortFunc right   );\
+                return SimdInterface_t<result_elem_t>::elementWiseCast(left) shortFunc right;\
             }\
             template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
@@ -175,12 +244,13 @@ namespace alpaka::lockstep
         BINARY_READONLY_OP(Division, /)
         BINARY_READONLY_OP(BitwiseAnd, &)
         BINARY_READONLY_OP(BitwiseOr, |)
-        BINARY_READONLY_OP(ShiftRight, >>)
-        BINARY_READONLY_OP(ShiftLeft, <<)
         BINARY_READONLY_OP(LessThen, <)
         BINARY_READONLY_OP(GreaterThen, >)
         BINARY_READONLY_OP(And, &&)
         BINARY_READONLY_OP(Or, ||)
+
+        BINARY_READONLY_SHIFT_OP(ShiftRight, >>)
+        BINARY_READONLY_SHIFT_OP(ShiftLeft, <<)
 
         UNARY_READONLY_OP_PREFIX(BitwiseInvert, ~)
         UNARY_READONLY_OP_PREFIX(Negation, !)
@@ -192,6 +262,7 @@ namespace alpaka::lockstep
 
 //clean up
 #undef BINARY_READONLY_OP
+#undef BINARY_READONLY_SHIFT_OP
 #undef UNARY_READONLY_OP_PREFIX
 #undef UNARY_READONLY_OP_POSTFIX
 #undef UNARY_FREE_FUNCTION
@@ -325,76 +396,6 @@ namespace alpaka::lockstep
 #undef XPR_FREE_UNARY_OPERATOR_POSTFIX
 #undef XPR_UNARY_FREE_FUNCTION
 
-        namespace detail
-        {
-            //downgrading of SimdLookupIndex/ScalarLookupIndex to SingleElemIndex when required.
-            //Needed because std::simd's operator<< only accepts Pack<int> as the right operand,
-            //or any type that is implictly castable to int (which is far more flexible but not the default). To get around this isssue, we
-            //downgrade here to call operator<< with Pack and a single element of integral type.
-
-            //Default: just forward the required idx type
-            template<typename T_Functor, uint32_t T_dimLeft, uint32_t T_dimRight>
-            struct DowngradeToDimensionality2D{
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) left(T_Idx const & idx){
-                    return idx;
-                }
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) right(T_Idx const & idx){
-                    return idx;
-                }
-            };
-
-            //Expressions with 2 scalar-only children do not need SIMD evaluation.
-            template<typename T_Functor>
-            struct DowngradeToDimensionality2D<T_Functor, 0u, 0u>{
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) left(T_Idx const & idx){
-                    return SingleElemIndex{};
-                }
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) right(T_Idx const & idx){
-                    return SingleElemIndex{};
-                }
-            };
-
-#define DOWNGRADE_LEFT(OP, DIM_LEFT, DIM_RIGHT)\
-            template<>\
-            struct DowngradeToDimensionality2D<OP, DIM_LEFT, DIM_RIGHT>{\
-                template<typename T_Idx>\
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) left(T_Idx const & idx){\
-                    return idx;\
-                }\
-                template<typename T_Idx>\
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) right(T_Idx const & idx){\
-                    return SingleElemIndex{};\
-                }\
-            };
-
-            //prevent broadcasting of righthand side scalars when using shift operators
-            DOWNGRADE_LEFT(ShiftLeft, 1u, 0u)
-            DOWNGRADE_LEFT(ShiftRight, 1u, 0u)
-
-#undef DOWNGRADE_LEFT
-
-            template<typename T_Functor, uint32_t T_dim>
-            struct DowngradeToDimensionality1D{
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
-                    return idx;
-                }
-            };
-
-            //Expressions with scalar-only children do not need SIMD evaluation.
-            template<typename T_Functor>
-            struct DowngradeToDimensionality1D<T_Functor, 0u>{
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
-                    return SingleElemIndex{};
-                }
-            };
-        } // namespace detail
-
         //scalar, read-only node
         template<typename T_Foreach, typename T_Elem, uint32_t T_stride>
         class ReadLeafXpr<T_Foreach, T_Elem, 0u, T_stride>{
@@ -402,8 +403,6 @@ namespace alpaka::lockstep
             T_Elem const m_source;
         public:
             T_Foreach const& m_forEach;
-
-            static_assert(!std::is_same_v<bool, T_Elem>, "ReadLeafXpr currently cannot handle booleans as masks would be required (of which we dont know the size)");
 
             ReadLeafXpr(T_Foreach const& forEach, T_Elem const& source) : m_source(source), m_forEach(forEach)
             {
@@ -539,7 +538,7 @@ namespace alpaka::lockstep
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
                 constexpr auto dim = getXprDims_v<T_Operand>;
-                using DowngradeAsNeccessary = detail::DowngradeToDimensionality1D<T_Functor, dim>;
+                using DowngradeAsNeccessary = detail::DowngradeToDimensionality<dim>;
                 return T_Functor::SIMD_EVAL_F(m_operand[DowngradeAsNeccessary::get(i)]);
             }
         };
@@ -559,10 +558,11 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
-                constexpr auto leftDim = getXprDims_v<T_Left>;
+                constexpr auto leftDim  = getXprDims_v<T_Left>;
                 constexpr auto rightDim = getXprDims_v<T_Right>;
-                using DowngradeAsNeccessary = detail::DowngradeToDimensionality2D<T_Functor, leftDim, rightDim>;
-                return T_Functor/*<std::decay_t<decltype(m_leftOperand[ScalarLookupIndex<0u>(0u)])>, std::decay_t<decltype(m_rightOperand[ScalarLookupIndex<0u>(0u)])>>*/::SIMD_EVAL_F(m_leftOperand[DowngradeAsNeccessary::left(i)], m_rightOperand[DowngradeAsNeccessary::right(i)]);
+                using DowngradeLeft  = detail::DowngradeToDimensionality<leftDim >;
+                using DowngradeRight = detail::DowngradeToDimensionality<rightDim>;
+                return T_Functor::SIMD_EVAL_F(m_leftOperand[DowngradeLeft::get(i)], m_rightOperand[DowngradeRight::get(i)]);
             }
 
             XPR_ASSIGN_OPERATOR

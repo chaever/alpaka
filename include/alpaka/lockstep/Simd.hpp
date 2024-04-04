@@ -6,11 +6,11 @@
 #include <algorithm>
 
 //the following 2 operators/functions are features missing from std::simd that are needed.
-//if you get a compiler error that mentions that any of these functions are being re-declared/re-defined, delete the function as it is superflous at that point.
+//if you get a compiler error that mentions that any of these functions are being re-declared/re-defined, delete the function as it is superfluous at that point.
 
 //specific for std::simd, allows addition of Pack<T> and Pack<T>::mask which is not normally possible
 template<typename T_Elem, typename T_Abi>
-ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd<T_Elem, T_Abi> const& left, typename std::experimental::simd<T_Elem, T_Abi>::mask_type const& right)
+ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd<T_Elem, T_Abi> const& left, typename std::experimental::simd_mask<T_Elem, T_Abi> const& right)
 {
     using Pack = std::experimental::simd<T_Elem, T_Abi>;
     ///TODO once std::experimental::where supports it, make this constexpr
@@ -97,7 +97,7 @@ namespace alpaka::lockstep
         }
 
         template<typename Source_t>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(Source_t const& pack) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(Source_t const& pack) -> Pack_t
         {
             return static_cast<T_Elem>(pack);
         }
@@ -126,10 +126,15 @@ namespace alpaka::lockstep
             return Pack_t(elem);
         }
 
-        template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(std::experimental::simd<Source_Elem_t, Source_Abi_t> const& pack) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(bool const & elem) -> typename Pack_t::mask_type
         {
-            return std::experimental::static_simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
+            return Pack_t::mask_type(elem);
+        }
+
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount, int> = 0>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
+        {
+            return std::experimental::static_simd_cast<T_Elem, T_Source_Elem, T_Source_Abi>(pack);
         }
     };
 
@@ -159,8 +164,13 @@ namespace alpaka::lockstep
             return Pack_t(elem);
         }
 
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(bool const & elem) -> typename Pack_t::mask_type
+        {
+            return Pack_t::mask_type(elem);
+        }
+
         template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(std::experimental::simd<Source_Elem_t, Source_Abi_t> const& pack) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<Source_Elem_t, Source_Abi_t> const& pack) -> Pack_t
         {
             return std::experimental::static_simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
         }
@@ -200,7 +210,7 @@ namespace alpaka::lockstep
         }
 
         template<typename Source_t>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCastTo(Source_t const& pack) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(Source_t const& pack) -> Pack_t
         {
             Pack_t tmp;
             for(auto i=0u; i<laneCount; ++i)
