@@ -526,7 +526,7 @@ namespace alpaka::lockstep
 
         template<typename T_Functor, typename T_Operand, typename T_Foreach, uint32_t T_dimensions>
         class UnaryXpr{
-            T_Operand m_operand;
+            std::conditional_t<std::is_same_v<T_Functor, Assignment>, T_Operand, const T_Operand> m_operand;
         public:
             T_Foreach const& m_forEach;
 
@@ -546,7 +546,7 @@ namespace alpaka::lockstep
         //const left operand, cannot assign
         template<typename T_Functor, typename T_Left, typename T_Right, typename T_Foreach, uint32_t T_dimensions>
         class BinaryXpr{
-            std::conditional_t<std::is_same_v<T_Functor, Assignment>, T_Left, const T_Left>m_leftOperand;
+            std::conditional_t<std::is_same_v<T_Functor, Assignment>, T_Left, const T_Left> m_leftOperand;
             T_Right const m_rightOperand;
         public:
             T_Foreach const& m_forEach;
