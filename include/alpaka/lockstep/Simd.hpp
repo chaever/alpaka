@@ -17,8 +17,8 @@ namespace std::experimental
     {
         using Pack = std::experimental::simd<T_Elem, T_Abi>;
         ///TODO once std::experimental::where supports it, make this constexpr
-        /*constexpr*/ Pack tmp(0);
-        std::experimental::where(right, tmp) = Pack(1);
+        /*constexpr*/ Pack tmp(left);
+        std::experimental::where(right, tmp) += Pack(1);
         return tmp;
     }
 
@@ -140,6 +140,15 @@ namespace alpaka::lockstep
         {
             return std::experimental::static_simd_cast<T_Elem, T_Source_Elem, T_Source_Abi>(pack);
         }
+
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount, int> = 0>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
+        {
+            static_assert(std::is_arithmetic_v<T_Source_Elem>);
+            Pack_t tmp(0);
+            std::experimental::where(mask, tmp) = Pack_t(1);
+            return tmp;
+        }
     };
 
     //std::experimental::simd, but N at a time
@@ -177,6 +186,15 @@ namespace alpaka::lockstep
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<Source_Elem_t, Source_Abi_t> const& pack) -> Pack_t
         {
             return std::experimental::static_simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
+        }
+
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount, int> = 0>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
+        {
+            static_assert(std::is_arithmetic_v<T_Source_Elem>);
+            Pack_t tmp(0);
+            std::experimental::where(mask, tmp) = Pack_t(1);
+            return tmp;
         }
     };
 
