@@ -8,22 +8,26 @@
 //the following 2 operators/functions are features missing from std::simd that are needed.
 //if you get a compiler error that mentions that any of these functions are being re-declared/re-defined, delete the function as it is superfluous at that point.
 
-//specific for std::simd, allows addition of Pack<T> and Pack<T>::mask which is not normally possible
-template<typename T_Elem, typename T_Abi>
-ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd<T_Elem, T_Abi> const& left, typename std::experimental::simd_mask<T_Elem, T_Abi> const& right)
+namespace std::experimental
 {
-    using Pack = std::experimental::simd<T_Elem, T_Abi>;
-    ///TODO once std::experimental::where supports it, make this constexpr
-    /*constexpr*/ Pack tmp(0);
-    std::experimental::where(right, tmp) = Pack(1);
-    return tmp;
-}
+    //specific for std::simd, allows addition of Pack<T> and Pack<T>::mask which is not normally possible
+    //should still be findable through ADL
+    template<typename T_Elem, typename T_Abi>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd<T_Elem, T_Abi> const& left, std::experimental::simd_mask<T_Elem, T_Abi> const& right)
+    {
+        using Pack = std::experimental::simd<T_Elem, T_Abi>;
+        ///TODO once std::experimental::where supports it, make this constexpr
+        /*constexpr*/ Pack tmp(0);
+        std::experimental::where(right, tmp) = Pack(1);
+        return tmp;
+    }
 
-template<typename T_Elem, typename T_Abi>
-ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(typename std::experimental::simd<T_Elem, T_Abi>::mask_type const& left, std::experimental::simd<T_Elem, T_Abi> const& right)
-{
-    //re-use other operator definition
-    return right+left;
+    template<typename T_Elem, typename T_Abi>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd_mask<T_Elem, T_Abi> const& left, std::experimental::simd<T_Elem, T_Abi> const& right)
+    {
+        //re-use other operator definition
+        return right+left;
+    }
 }
 
 //std::abs for floating-point-based simd-packs (currently not supported by default)
@@ -121,14 +125,14 @@ namespace alpaka::lockstep
             t.copy_to(mem, std::experimental::element_aligned);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const& elem) -> Pack_t
         {
             return Pack_t(elem);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(bool const & elem) -> typename Pack_t::mask_type
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(bool const& elem) -> typename Pack_t::mask_type
         {
-            return Pack_t::mask_type(elem);
+            return typename Pack_t::mask_type(elem);
         }
 
         template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount, int> = 0>
@@ -166,7 +170,7 @@ namespace alpaka::lockstep
 
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(bool const & elem) -> typename Pack_t::mask_type
         {
-            return Pack_t::mask_type(elem);
+            return typename Pack_t::mask_type(elem);
         }
 
         template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount, int> = 0>
