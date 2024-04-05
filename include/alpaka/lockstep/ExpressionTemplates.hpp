@@ -408,11 +408,6 @@ namespace alpaka::lockstep
             {
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] SimdLookupIndex const idx) const
-            {
-                return SimdInterface_t<T_Elem>::broadcast(m_source);
-            }
-
             template<uint32_t T_offset>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] ScalarLookupIndex<T_offset> const idx) const
             {
@@ -434,11 +429,6 @@ namespace alpaka::lockstep
 
             WriteLeafXpr(T_Foreach const& forEach, T_Elem & dest) : m_dest(dest), m_forEach(forEach)
             {
-            }
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] SimdLookupIndex const idx) const
-            {
-                return SimdInterface_t<T_Elem>::broadcast(m_dest);
             }
 
             template<uint32_t T_offset>
