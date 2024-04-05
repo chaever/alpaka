@@ -13,7 +13,7 @@ namespace std::experimental
     //specific for std::simd, allows addition of Pack<T> and Pack<T>::mask which is not normally possible
     //should still be findable through ADL
     template<typename T_Elem, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd<T_Elem, T_Abi> const& left, std::experimental::simd_mask<T_Elem, T_Abi> const& right)
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::enable_if_t<std::is_arithmetic_v<T_Elem>, std::experimental::simd<T_Elem, T_Abi>> operator+(std::experimental::simd<T_Elem, T_Abi> const& left, std::experimental::simd_mask<T_Elem, T_Abi> const& right)
     {
         using Pack = std::experimental::simd<T_Elem, T_Abi>;
         ///TODO once std::experimental::where supports it, make this constexpr
