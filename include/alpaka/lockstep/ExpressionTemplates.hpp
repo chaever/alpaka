@@ -592,7 +592,7 @@ namespace alpaka::lockstep
         template<typename T_Xpr>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto evalToCtxVar(T_Xpr const& xpr){
 
-            using Elem_t = std::decay_t<decltype(xpr[ScalarLookupIndex<0u>{0u}])>;
+            using Elem_t = std::decay_t<decltype(xpr[std::declval<ScalarLookupIndex<0u>>()])>;
             auto const& forEach = xpr.m_forEach;
             using ContextVar_t = Variable<Elem_t, typename std::decay_t<decltype(forEach)>::BaseConfig>;
 
