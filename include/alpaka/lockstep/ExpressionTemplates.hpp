@@ -126,7 +126,7 @@ namespace alpaka::lockstep
         static constexpr uint32_t getXprDims_v = detail::GetXprDims<std::decay_t<T>>::value;
 
 //operations like +,-,*,/ that dont modify their operands, and whose left scalar operands need to be broadcasted
-#define BINARY_READONLY_OP(name, shortFunc)\
+#define BINARY_READONLY_ARITHMETIC_OP(name, shortFunc)\
         struct name{\
             /*for Scalar op Scalar*/\
             template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
@@ -148,7 +148,53 @@ namespace alpaka::lockstep
             /*for Pack op Scalar*/\
             template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                /*static_assert(std::is_arithmetic_v<std::decay_t<decltype(std::declval<T_Left>()[0])>>);*/\
                 using result_elem_t = decltype(left[0] shortFunc right   );\
+                return SimdInterface_t<result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t>::broadcast(right);\
+            }\
+            template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+                return alpaka::lockstep::expr::load(forEach, other);\
+            }\
+            template<typename T_Other, typename T_Foreach, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
+                return other;\
+            }\
+            template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other, T_Foreach const& forEach){\
+                return alpaka::lockstep::expr::load(forEach, other);\
+            }\
+            template<typename T_Other, typename T_Foreach, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other, T_Foreach const& forEach){\
+                return other;\
+            }\
+        };
+
+#define BINARY_READONLY_COMPARISON_OP(name, shortFunc)\
+        struct name{\
+            /*for Scalar op Scalar*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                return left shortFunc right;\
+            }\
+            /*for Pack op Pack*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                /*char + long int becomes long int*/\
+                using result_elem_t = decltype(left[0] + right[0]);\
+                return SimdInterface_t<result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCast(right);\
+            }\
+            /*for Scalar op Pack*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                using result_elem_t = decltype(left + right[0]);\
+                return SimdInterface_t<result_elem_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t>::elementWiseCast(right);\
+            }\
+            /*for Pack op Scalar*/\
+            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
+                /*static_assert(std::is_arithmetic_v<std::decay_t<decltype(std::declval<T_Left>()[0])>>);*/\
+                using result_elem_t = decltype(left[0] + right   );\
                 return SimdInterface_t<result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t>::broadcast(right);\
             }\
             template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
@@ -238,16 +284,17 @@ namespace alpaka::lockstep
             }\
         };
 
-        BINARY_READONLY_OP(Addition, +)
-        BINARY_READONLY_OP(Subtraction, -)
-        BINARY_READONLY_OP(Multiplication, *)
-        BINARY_READONLY_OP(Division, /)
-        BINARY_READONLY_OP(BitwiseAnd, &)
-        BINARY_READONLY_OP(BitwiseOr, |)
-        BINARY_READONLY_OP(LessThen, <)
-        BINARY_READONLY_OP(GreaterThen, >)
-        BINARY_READONLY_OP(And, &&)
-        BINARY_READONLY_OP(Or, ||)
+        BINARY_READONLY_ARITHMETIC_OP(Addition, +)
+        BINARY_READONLY_ARITHMETIC_OP(Subtraction, -)
+        BINARY_READONLY_ARITHMETIC_OP(Multiplication, *)
+        BINARY_READONLY_ARITHMETIC_OP(Division, /)
+        BINARY_READONLY_ARITHMETIC_OP(BitwiseAnd, &)
+        BINARY_READONLY_ARITHMETIC_OP(BitwiseOr, |)
+        BINARY_READONLY_ARITHMETIC_OP(And, &&)
+        BINARY_READONLY_ARITHMETIC_OP(Or, ||)
+
+        BINARY_READONLY_COMPARISON_OP(LessThen, <)
+        BINARY_READONLY_COMPARISON_OP(GreaterThen, >)
 
         BINARY_READONLY_SHIFT_OP(ShiftRight, >>)
         BINARY_READONLY_SHIFT_OP(ShiftLeft, <<)
@@ -261,7 +308,7 @@ namespace alpaka::lockstep
         UNARY_FREE_FUNCTION(Absolute, std::abs)
 
 //clean up
-#undef BINARY_READONLY_OP
+#undef BINARY_READONLY_ARITHMETIC_OP
 #undef BINARY_READONLY_SHIFT_OP
 #undef UNARY_READONLY_OP_PREFIX
 #undef UNARY_READONLY_OP_POSTFIX
