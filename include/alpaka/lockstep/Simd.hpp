@@ -63,23 +63,23 @@ namespace alpaka::lockstep
 #endif
     } // namespace simdBackendTags
 
-    template<typename T_Elem, typename T_Simd>
+    template<typename T_Elem, typename T_SizeIndicator, typename T_Simd>
     struct SimdInterface;
 
     //conforms to the SimdInterface class above
-    template<typename T_Type>
-    using SimdInterface_t = SimdInterface<T_Type, simdBackendTags::SelectedSimdBackendTag>;
+    template<typename T_Type, typename T_SizeIndicator>
+    using SimdInterface_t = SimdInterface<T_Type, T_SizeIndicator, simdBackendTags::SelectedSimdBackendTag>;
 
     //lane count for any type T, using the selected SIMD backend
-    template<typename T_Type>
-    static constexpr size_t laneCount_v = SimdInterface_t<T_Type>::laneCount;
+    template<typename T_SizeIndicator>
+    static constexpr size_t laneCount_v = SimdInterface_t<T_SizeIndicator, T_SizeIndicator>::laneCount;
 
-    template<typename T_Type>
-    using Pack_t = typename SimdInterface_t<T_Type>::Pack_t;
+    template<typename T_Type, typename T_SizeIndicator>
+    using Pack_t = typename SimdInterface_t<T_Type, T_SizeIndicator>::Pack_t;
 
     //General-case SIMD interface, corresponds to a simdWidth of 1
-    template<typename T_Elem>
-    struct SimdInterface<T_Elem, simdBackendTags::ScalarSimdTag>{
+    template<typename T_Elem, typename T_SizeIndicator>
+    struct SimdInterface<T_Elem, T_SizeIndicator, simdBackendTags::ScalarSimdTag>{
         using Elem_t = T_Elem;
         using Pack_t = T_Elem;//special case laneCount=1 : elements are packs
 
@@ -108,10 +108,20 @@ namespace alpaka::lockstep
     };
 
     //Specialization using std::experimental::simd
-    template<typename T_Elem>
-    struct SimdInterface<T_Elem, simdBackendTags::StdSimdTag>{
+    //in case of T_Elem = bool, the size of the packs is decided by T_SizeIndicator
+    template<typename T_Elem, typename T_SizeIndicator>
+    struct SimdInterface<T_Elem, T_SizeIndicator, simdBackendTags::StdSimdTag>{
+        inline static constexpr bool packIsMask = std::is_same_v<T_Elem, bool>;
+
+        //make sure that only bool can have T_Elem != T_SizeIndicator
+        static_assert(packIsMask || std::is_same_v<T_Elem, T_SizeIndicator>);
+        static_assert(!std::is_same_v<bool, T_SizeIndicator>);
+
         using Elem_t = T_Elem;
-        using Pack_t = std::experimental::simd<T_Elem, std::experimental::simd_abi::native<T_Elem>>;
+        using abi_t = std::experimental::simd_abi::native<T_SizeIndicator>;
+        using Pack_t = std::conditional_t<packIsMask,
+        std::experimental::simd_mask<T_SizeIndicator, abi_t>,
+        std::experimental::simd<T_Elem, abi_t>>;
 
         inline static constexpr std::size_t laneCount = Pack_t::size();
 
@@ -130,18 +140,15 @@ namespace alpaka::lockstep
             return Pack_t(elem);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(bool const& elem) -> typename Pack_t::mask_type
-        {
-            return typename Pack_t::mask_type(elem);
-        }
-
-        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount, int> = 0>
+        //got pack, own elements are non-bool
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
         {
             return std::experimental::static_simd_cast<T_Elem, T_Source_Elem, T_Source_Abi>(pack);
         }
 
-        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount, int> = 0>
+        //got mask, own elements are non-bool
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
         {
             static_assert(std::is_arithmetic_v<T_Source_Elem>);
@@ -149,16 +156,40 @@ namespace alpaka::lockstep
             std::experimental::where(mask, tmp) = Pack_t(1);
             return tmp;
         }
+
+        //got pack, own elements are bool
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
+        {
+            //arithmetic types casted to bool are true if != 0
+            return pack != 0;
+        }
+
+        //got mask, own elements are bool
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
+        {
+            return mask;
+        }
     };
 
     //std::experimental::simd, but N at a time
-    template<typename T_Elem, uint32_t T_simdMult>
-    struct SimdInterface<T_Elem, simdBackendTags::StdSimdNTimesTag<T_simdMult>>{
-        using Elem_t = T_Elem;
-        static constexpr auto sizeOfNativePack = std::experimental::simd<T_Elem, std::experimental::simd_abi::native<T_Elem> >::size();
-        using Pack_t = std::experimental::simd<T_Elem, std::experimental::simd_abi::fixed_size<sizeOfNativePack*T_simdMult> >;
+    template<typename T_Elem, typename T_SizeIndicator, uint32_t T_simdMult>
+    struct SimdInterface<T_Elem, T_SizeIndicator, simdBackendTags::StdSimdNTimesTag<T_simdMult>>{
+        inline static constexpr bool packIsMask = std::is_same_v<T_Elem, bool>;
 
+        //make sure that only bool can have T_Elem != T_SizeIndicator
+        static_assert(packIsMask || std::is_same_v<T_Elem, T_SizeIndicator>);
+        static_assert(!std::is_same_v<bool, T_SizeIndicator>);
         static_assert(T_simdMult>1u, "Tried to use StdSimdNTimesTag<T_simdMult> with T_simdMult=1. Use StdSimdTag in this case.");
+
+        using Elem_t = T_Elem;
+        using abi_native_t = std::experimental::simd_abi::native<T_SizeIndicator>;
+        inline static constexpr auto sizeOfNativePack = std::experimental::simd<T_SizeIndicator, abi_native_t>::size();
+        using abi_multiplied_t = std::experimental::simd_abi::fixed_size<sizeOfNativePack*T_simdMult>;
+        using Pack_t = std::conditional_t<packIsMask,
+        std::experimental::simd_mask<T_SizeIndicator, abi_multiplied_t>,
+        std::experimental::simd<T_Elem, abi_multiplied_t>>;
 
         inline static constexpr std::size_t laneCount = Pack_t::size();
 
@@ -177,18 +208,15 @@ namespace alpaka::lockstep
             return Pack_t(elem);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(bool const & elem) -> typename Pack_t::mask_type
+        //got pack, own elements are non-bool
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
         {
-            return typename Pack_t::mask_type(elem);
+            return std::experimental::static_simd_cast<T_Elem, T_Source_Elem, T_Source_Abi>(pack);
         }
 
-        template<typename Source_Elem_t, typename Source_Abi_t, std::enable_if_t<laneCount_v<Source_Elem_t> == laneCount, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<Source_Elem_t, Source_Abi_t> const& pack) -> Pack_t
-        {
-            return std::experimental::static_simd_cast<T_Elem, Source_Elem_t, Source_Abi_t>(pack);
-        }
-
-        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount, int> = 0>
+        //got mask, own elements are non-bool
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
         {
             static_assert(std::is_arithmetic_v<T_Source_Elem>);
@@ -196,14 +224,29 @@ namespace alpaka::lockstep
             std::experimental::where(mask, tmp) = Pack_t(1);
             return tmp;
         }
+
+        //got pack, own elements are bool
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
+        {
+            //arithmetic types casted to bool are true if != 0
+            return pack != 0;
+        }
+
+        //got mask, own elements are bool
+        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
+        {
+            return mask;
+        }
     };
 
     template<typename T_Elem>
     using StdArrayWith4Elems = std::array<T_Elem, alpaka::core::vectorization::GetVectorizationSizeElems<T_Elem>::value>;
 
     //Specialization using 4 values in an array
-    template<typename T_Elem>
-    struct SimdInterface<T_Elem, simdBackendTags::ArrayOf4Tag>{
+    template<typename T_Elem, typename T_SizeIndicator>
+    struct SimdInterface<T_Elem, T_SizeIndicator, simdBackendTags::ArrayOf4Tag>{
         using Elem_t = T_Elem;
         using Pack_t = StdArrayWith4Elems<T_Elem>;
 
