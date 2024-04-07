@@ -136,24 +136,24 @@ namespace alpaka::lockstep
             /*for Pack op Pack*/\
             template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                using result_elem_t = decltype(left[0] shortFunc right[0]);/*float*/\
-                using sizeIndicator_t = decltype(left[0]);/*uint32_t*/\
-                return SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(right);\
+                using result_elem_t = decltype(left[0] shortFunc right[0]);\
+                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, GetSizeIndicator_t<decltype(left)>, result_elem_t>;\
+                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
             }\
             /*for Scalar op Pack*/\
             template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                using result_elem_t = decltype(left    shortFunc right[0]);/*double*/\
-                using sizeIndicator_t = decltype(right[0]);/*float*/\
-                return SimdInterface_t<result_elem_t, result_elem_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(right);\
+                using result_elem_t = decltype(left    shortFunc right[0]);\
+                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, GetSizeIndicator_t<decltype(right)>, result_elem_t>;\
+                return SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
             }\
             /*for Pack op Scalar*/\
             template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 /*static_assert(std::is_arithmetic_v<std::decay_t<decltype(std::declval<T_Left>()[0])>>);*/\
                 using result_elem_t = decltype(left[0] shortFunc right   );\
-                using sizeIndicator_t = decltype(left[0]);\
-                return SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, result_elem_t>::broadcast(right);\
+                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, GetSizeIndicator_t<decltype(left)>, result_elem_t>;\
+                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(right);\
             }\
             template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
@@ -185,23 +185,23 @@ namespace alpaka::lockstep
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 /*char + long int becomes long int*/\
                 using result_elem_t = decltype(left[0] + right[0]);\
-                using sizeIndicator_t = decltype(left[0]);\
-                return SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(right);\
+                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, GetSizeIndicator_t<decltype(left)>, result_elem_t>;\
+                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
             }\
             /*for Scalar op Pack*/\
             template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 using result_elem_t = decltype(left + right[0]);\
-                using sizeIndicator_t = decltype(right[0]);\
-                return SimdInterface_t<result_elem_t, result_elem_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(right);\
+                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, GetSizeIndicator_t<decltype(right)>, result_elem_t>;\
+                return SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
             }\
             /*for Pack op Scalar*/\
             template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 /*static_assert(std::is_arithmetic_v<std::decay_t<decltype(std::declval<T_Left>()[0])>>);*/\
                 using result_elem_t = decltype(left[0] + right   );\
-                using sizeIndicator_t = decltype(left[0]);\
-                return SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, result_elem_t>::broadcast(right);\
+                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, GetSizeIndicator_t<decltype(left)>, result_elem_t>;\
+                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(right);\
             }\
             template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
@@ -232,15 +232,15 @@ namespace alpaka::lockstep
             template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 using result_elem_t = decltype(left[0] shortFunc right[0]);\
-                using sizeIndicator_t = decltype(left[0]);\
-                return SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(right);\
+                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, GetSizeIndicator_t<decltype(left)>, result_elem_t>;\
+                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
             }\
             /*for Scalar op Pack*/\
             template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 using result_elem_t = decltype(left    shortFunc right[0]);\
-                using sizeIndicator_t = decltype(right[0]);\
-                return SimdInterface_t<result_elem_t, result_elem_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(right);\
+                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, GetSizeIndicator_t<decltype(right)>, result_elem_t>;\
+                return SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
             }\
             /*for Pack op Scalar
              * NOTE: shifts can be called with a single element (Pack_t<<4 is viable), therefore no broadcast happens below
@@ -248,8 +248,8 @@ namespace alpaka::lockstep
             template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 using result_elem_t = decltype(left[0] shortFunc right   );\
-                using sizeIndicator_t = decltype(left[0]);\
-                return SimdInterface_t<result_elem_t, result_elem_t>::elementWiseCast(left) shortFunc right;\
+                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, GetSizeIndicator_t<decltype(left)>, result_elem_t>;\
+                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc right;\
             }\
             template<typename T_Other, typename T_Foreach, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other, T_Foreach const& forEach){\
