@@ -469,8 +469,8 @@ namespace alpaka::lockstep
             {
             }
 
-            template<uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] ScalarLookupIndex<T_offset> const idx) const
+            template<typename T_Foreach, uint32_t T_offset>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] ScalarLookupIndex<T_Foreach, T_offset> const idx) const
             {
                 return m_source;
             }
@@ -480,7 +480,8 @@ namespace alpaka::lockstep
                 return m_source;
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex const idx) const
+            template<typename T_Foreach>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
                 return m_source;
             }
@@ -488,7 +489,7 @@ namespace alpaka::lockstep
 
         //scalar, write-only node
         template<typename T_Elem>
-        class WriteLeafXprT_Elem, 0u, dataLocationTags::scalar>{
+        class WriteLeafXpr<T_Elem, 0u, dataLocationTags::scalar>{
             T_Elem & m_dest;
         public:
 
@@ -496,8 +497,8 @@ namespace alpaka::lockstep
             {
             }
 
-            template<uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] ScalarLookupIndex<T_offset> const idx) const
+            template<typename T_Foreach, uint32_t T_offset>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] ScalarLookupIndex<T_Foreach, T_offset> const idx) const
             {
                 return m_dest;
             }
@@ -520,15 +521,16 @@ namespace alpaka::lockstep
             {
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex const idx) const
+            template<typename T_Foreach>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
                 static_assert(!std::is_same_v<bool, T_Elem>);
                 const auto & worker = idx.m_forEach.getWorker();
                 return SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(m_source + laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)));
             }
 
-            template<uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_offset> const idx) const
+            template<typename T_Foreach, uint32_t T_offset>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
             {
                 const auto & worker = idx.m_forEach.getWorker();
                 return m_source[T_offset + worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)];
@@ -538,22 +540,22 @@ namespace alpaka::lockstep
         //cannot be assigned to
         template<typename T_Elem, typename T_Config>
         class ReadLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar>{
-            using CtxVar_t = typename lockstep::Variable<T_Elem, T_Config>;
-            CtxVar_t const& m_source;
+            lockstep::Variable<T_Elem, T_Config> const& m_source;
         public:
 
-            ReadLeafXpr(CtxVar_t const& source) : m_source(source)
+            ReadLeafXpr(lockstep::Variable<T_Elem, T_Config> const& source) : m_source(source)
             {
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex const idx) const
+            template<typename T_Foreach>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
                 static_assert(!std::is_same_v<bool, T_Elem>);
                 return SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(&(m_source[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)]));
             }
 
-            template<uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_offset> const idx) const
+            template<typename T_Foreach, uint32_t T_offset>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
             {
                 return m_source[T_offset + static_cast<uint32_t>(idx)];
             }
@@ -571,17 +573,19 @@ namespace alpaka::lockstep
             {
             }
             //returns ref to allow assignment
-            template<uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](ScalarLookupIndex<T_offset> const idx) const
+            template<typename T_Foreach, uint32_t T_offset>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
             {
                 static_assert(!std::is_same_v<bool, T_Elem>);
                 auto const& worker = idx.m_forEach.getWorker();
-                return m_dest[T_offset + worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)];
+                return m_dest[T_offset + static_cast<uint32_t>(idx)];
             }
 
             //returns ref to allow assignment
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](SimdLookupIndex const idx) const
+            template<typename T_Foreach>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
+                auto const& worker = idx.m_forEach.getWorker();
                 return m_dest[laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))];
             }
 
@@ -592,22 +596,22 @@ namespace alpaka::lockstep
         //can be assigned to, and read from
         template<typename T_Elem, typename T_Config>
         class WriteLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar>{
-            using CtxVar_t = typename lockstep::Variable<T_Elem, T_Config>;
-            CtxVar_t & m_dest;
+            lockstep::Variable<T_Elem, T_Config> & m_dest;
         public:
 
-            WriteLeafXpr(CtxVar_t & dest) : m_dest(dest)
+            WriteLeafXpr(lockstep::Variable<T_Elem, T_Config> & dest) : m_dest(dest)
             {
             }
             //returns ref to allow assignment
-            template<uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](ScalarLookupIndex<T_offset> const idx) const
+            template<typename T_Foreach, uint32_t T_offset>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
             {
                 return m_dest[T_offset + static_cast<uint32_t>(idx)];
             }
 
             //returns ref to allow assignment
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](SimdLookupIndex const idx) const
+            template<typename T_Foreach>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
                 static_assert(!std::is_same_v<bool, T_Elem>);
                 return m_dest[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)];
@@ -667,14 +671,14 @@ namespace alpaka::lockstep
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void evaluateExpression(T_Foreach const& forEach, T_Xpr const& xpr)
         {
             constexpr auto lanes = laneCount_v<T_Elem>;
-            constexpr auto numWorkers = std::decay_t<decltype(xpr.m_forEach.getWorker())>::numWorkers;
-            constexpr auto domainSize = std::decay_t<decltype(xpr.m_forEach)>::domainSize;
+            constexpr auto numWorkers = std::decay_t<decltype(forEach.getWorker())>::numWorkers;
+            constexpr auto domainSize = std::decay_t<decltype(forEach)>::domainSize;
 
             constexpr auto simdLoops = domainSize/(numWorkers*lanes);
 
             constexpr auto elementsProcessedBySimd = simdLoops*lanes*numWorkers;
 
-            const auto workerIdx = xpr.m_forEach.getWorker().getWorkerIdx();
+            const auto workerIdx = forEach.getWorker().getWorkerIdx();
 
             //std::cout << "evaluateExpression: running " << simdLoops << " simdLoops and " << (domainSize - simdLoops*lanes*numWorkers) << " scalar loops." << std::endl;
 
@@ -687,14 +691,14 @@ namespace alpaka::lockstep
             for(uint32_t i = 0u; i<(domainSize-elementsProcessedBySimd); ++i){
                 //std::cout << "evaluateExpression: starting scalarLoop " << i << std::endl;
                 //uses the operator[] that returns const T_Elem &
-                xpr[ScalarLookupIndex<elementsProcessedBySimd>{forEach, i}];
+                xpr[ScalarLookupIndex<T_Foreach, elementsProcessedBySimd>{forEach, i}];
             }
         }
 
         template<typename T_Foreach, typename T_Xpr>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto evalToCtxVar(T_Foreach const& forEach, T_Xpr const& xpr){
 
-            using Elem_t = std::decay_t<decltype(xpr[std::declval<ScalarLookupIndex<0u>>()])>;
+            using Elem_t = std::decay_t<decltype(xpr[std::declval<ScalarLookupIndex<T_Foreach, 0u>>()])>;
             using ContextVar_t = Variable<Elem_t, typename std::decay_t<decltype(forEach)>::BaseConfig>;
 
             ContextVar_t tmp;
@@ -705,34 +709,34 @@ namespace alpaka::lockstep
         //single element, broadcasted if required
         template<typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const & elem){
-            return ReadLeafXpr<T_Elem, 0u>(elem);
+            return ReadLeafXpr<T_Elem, 0u, dataLocationTags::scalar>(elem);
         }
 
         //pointer to threadblocks data
         template<typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const * const ptr){
-            return ReadLeafXpr<T_Elem, 1u>(ptr);
+            return ReadLeafXpr<T_Elem, 1u, dataLocationTags::perBlockArray>(ptr);
         }
 
         //lockstep ctxVar
         template<template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Variable<T_Elem, T_Config> const& ctxVar){
-            return ReadLeafXpr<T_Elem, 1u>(ctxVar);
+            return ReadLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar>(ctxVar);
         }
 
         template<typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem & elem){
-            return WriteLeafXpr<T_Elem, 0u>(elem);
+            return WriteLeafXpr<T_Elem, 0u, dataLocationTags::scalar>(elem);
         }
 
         template<typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem * const ptr){
-            return WriteLeafXpr<T_Elem, 1u>(ptr);
+            return WriteLeafXpr<T_Elem, 1u, dataLocationTags::perBlockArray>(ptr);
         }
 
         template<template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Variable<T_Elem, T_Config> & ctxVar){
-            return WriteLeafXpr<T_Elem, 1u>(ctxVar);
+            return WriteLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar>(ctxVar);
         }
 
 //clean up
