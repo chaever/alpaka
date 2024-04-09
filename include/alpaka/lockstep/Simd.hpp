@@ -322,14 +322,15 @@ namespace alpaka::lockstep
         using type = T_SizeIndicator;
     };
 
-    template<uint32_t T_offset = 0u>
+    template<typename T_Foreach, uint32_t T_offset = 0u>
     class ScalarLookupIndex{
         std::size_t m_idx;
     public:
 
         static constexpr auto offset = T_offset;
+        T_Foreach const& m_forEach;
 
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ScalarLookupIndex (const std::size_t idx) : m_idx(idx){}
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ScalarLookupIndex(T_Foreach const& forEach, const std::size_t idx): m_forEach(forEach), m_idx(idx){}
 
         //allow conversion to flat number, but not implicitly
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit constexpr operator uint32_t() const
@@ -338,11 +339,14 @@ namespace alpaka::lockstep
         }
     };
 
+    template<typename T_Foreach>
     class SimdLookupIndex{
         std::size_t m_idx;
     public:
 
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE SimdLookupIndex (const std::size_t idx) : m_idx(idx){}
+        T_Foreach const& m_forEach;
+
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE SimdLookupIndex (T_Foreach const& forEach, const std::size_t idx) : m_forEach(forEach), m_idx(idx){}
 
         //allow conversion to flat number, but not implicitly
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit constexpr operator uint32_t() const
