@@ -117,6 +117,14 @@ namespace alpaka::lockstep
                     return SingleElemIndex{};
                 }
             };
+
+            struct MaintainDimensionality{
+                template<typename T_Idx>
+                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
+                    return idx;
+                }
+            };
+
         } // namespace detail
 
         template<typename T>
@@ -369,15 +377,6 @@ namespace alpaka::lockstep
             return BinaryXpr<Assignment, std::decay_t<decltype(*this)>, decltype(rightXpr), T_Foreach, resultDims>(*this, rightXpr);\
         }
 
-//uses the assign above and one other operator to emulate a third (a+=b -> a=a+b)
-#define XPR_MEMEBR_OPERATOR_SPLIT(nameWithoutAssign, shortFuncWithAssign, shortFuncWithoutAssign)\
-        template<typename T_Other>\
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFuncWithAssign(T_Other const & other) const\
-        {\
-            auto rightXpr = nameWithoutAssign::makeRightXprFromContainer(other, m_forEach);\
-            return ((*this) = ((*this) shortFuncWithoutAssign rightXpr));\
-        }
-
 //free operator definitions. Use these when possible. Expression can be the left or right operand.
 #define XPR_FREE_BINARY_OPERATOR(name, shortFunc)\
         template<typename T_Left, typename T_Right, std::enable_if_t< isXpr_v<T_Left>, int> = 0>\
@@ -475,6 +474,12 @@ namespace alpaka::lockstep
             {
                 return m_source;
             }
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex const idx) const
+            {
+                static_assert(!std::is_same_v<bool, T_Elem>);
+                return SimdInterface_t<T_Elem, T_Elem>::broadcast(m_source);
+            }
         };
 
         //scalar, read-write node
@@ -567,8 +572,6 @@ namespace alpaka::lockstep
             }
 
             XPR_ASSIGN_OPERATOR
-            XPR_MEMEBR_OPERATOR_SPLIT(Addition, +=, +)
-            XPR_MEMEBR_OPERATOR_SPLIT(Multiplication, *=, *)
 
         };
 
@@ -596,6 +599,11 @@ namespace alpaka::lockstep
         class BinaryXpr{
             std::conditional_t<std::is_same_v<T_Functor, Assignment>, T_Left, const T_Left> m_leftOperand;
             T_Right const m_rightOperand;
+
+            //Assignment always requests the type of element that needs to be assigned
+            template<typename T_Operand>
+            using optionalDowngrading = std::conditional_t<std::is_same_v<T_Functor, Assignment>, detail::MaintainDimensionality, detail::DowngradeToDimensionality<getXprDims_v<T_Operand>>>;
+
         public:
             T_Foreach const& m_forEach;
 
@@ -606,16 +614,12 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
-                constexpr auto leftDim  = getXprDims_v<T_Left>;
-                constexpr auto rightDim = getXprDims_v<T_Right>;
-                using DowngradeLeft  = detail::DowngradeToDimensionality<leftDim >;
-                using DowngradeRight = detail::DowngradeToDimensionality<rightDim>;
+                using DowngradeLeft  = optionalDowngrading<T_Left>;
+                using DowngradeRight = optionalDowngrading<T_Right>;
                 return T_Functor::SIMD_EVAL_F(m_leftOperand[DowngradeLeft::get(i)], m_rightOperand[DowngradeRight::get(i)]);
             }
 
             XPR_ASSIGN_OPERATOR
-            XPR_MEMEBR_OPERATOR_SPLIT(Addition, +=, +)
-            XPR_MEMEBR_OPERATOR_SPLIT(Multiplication, *=, *)
         };
 
         ///TODO T_Elem should maybe also be deduced?
@@ -699,7 +703,6 @@ namespace alpaka::lockstep
 //clean up
 #undef XPR_OP_WRAPPER
 #undef XPR_ASSIGN_OPERATOR
-#undef XPR_MEMEBR_OPERATOR_SPLIT
 
     } // namespace expr
 } // namespace alpaka::lockstep
