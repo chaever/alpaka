@@ -27,13 +27,13 @@ namespace alpaka::lockstep
         }
 
         //forward declarations
-        template<typename T_Functor, typename T_Left, typename T_Right, uint32_t T_dimensions>
+        template<typename T_Functor, typename T_Left, typename T_Right>
         class BinaryXpr;
-        template<typename T_Functor, typename T_Operand, uint32_t T_dimensions>
+        template<typename T_Functor, typename T_Operand>
         class UnaryXpr;
-        template<typename T_Elem, uint32_t T_dimensions, typename dataLocationTag>
+        template<typename T_Elem, typename dataLocationTag>
         class ReadLeafXpr;
-        template<typename T_Elem, uint32_t T_dimensions, typename dataLocationTag>
+        template<typename T_Elem, typename dataLocationTag>
         class WriteLeafXpr;
 
 
@@ -65,83 +65,30 @@ namespace alpaka::lockstep
                 static constexpr bool value = false;
             };
 
-            template<typename T_Functor, typename T_Left, typename T_Right, uint32_t T_dimensions>
-            struct IsXpr<BinaryXpr<T_Functor, T_Left, T_Right, T_dimensions>>{
+            template<typename T_Functor, typename T_Left, typename T_Right>
+            struct IsXpr<BinaryXpr<T_Functor, T_Left, T_Right>>{
                 static constexpr bool value = true;
             };
 
-            template<typename T_Functor, typename T_Operand, uint32_t T_dimensions>
-            struct IsXpr<UnaryXpr<T_Functor, T_Operand, T_dimensions>>{
+            template<typename T_Functor, typename T_Operand>
+            struct IsXpr<UnaryXpr<T_Functor, T_Operand>>{
                 static constexpr bool value = true;
             };
 
-            template<typename T_Elem, uint32_t T_dimensions, typename dataLocationTag>
-            struct IsXpr<ReadLeafXpr<T_Elem, T_dimensions, dataLocationTag> >{
+            template<typename T_Elem, typename dataLocationTag>
+            struct IsXpr<ReadLeafXpr<T_Elem, dataLocationTag> >{
                 static constexpr bool value = true;
             };
 
-            template<typename T_Elem, uint32_t T_dimensions, typename dataLocationTag>
-            struct IsXpr<WriteLeafXpr<T_Elem, T_dimensions, dataLocationTag> >{
+            template<typename T_Elem, typename dataLocationTag>
+            struct IsXpr<WriteLeafXpr<T_Elem, dataLocationTag> >{
                 static constexpr bool value = true;
-            };
-
-            //returns the dimensionality of an expression.
-            //example: the expression that results form adding 2 vectorExpressions(each with dimensionality 1) will have dimensionality 1.
-            template<typename T>
-            struct GetXprDims;
-
-            template<typename T_Functor, typename T_Left, typename T_Right, uint32_t T_dimensions>
-            struct GetXprDims<BinaryXpr<T_Functor, T_Left, T_Right, T_dimensions>>{
-                static constexpr auto value = T_dimensions;
-            };
-
-            template<typename T_Functor, typename T_Operand, uint32_t T_dimensions>
-            struct GetXprDims<UnaryXpr<T_Functor, T_Operand, T_dimensions>>{
-                static constexpr auto value = T_dimensions;
-            };
-
-            template<typename T_Elem, uint32_t T_dimensions, typename dataLocationTag>
-            struct GetXprDims<ReadLeafXpr<T_Elem, T_dimensions, dataLocationTag>>{
-                static constexpr auto value = T_dimensions;
-            };
-
-            template<typename T_Elem, uint32_t T_dimensions, typename dataLocationTag>
-            struct GetXprDims<WriteLeafXpr<T_Elem, T_dimensions, dataLocationTag>>{
-                static constexpr auto value = T_dimensions;
-            };
-
-            //Default: just forward the required idx type
-            template<uint32_t T_dim>
-            struct DowngradeToDimensionality{
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
-                    return idx;
-                }
-            };
-
-            //Do not access 0-dimensional Expressions with for example SIMD index types
-            template<>
-            struct DowngradeToDimensionality<0u>{
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
-                    return SingleElemIndex{};
-                }
-            };
-
-            struct MaintainDimensionality{
-                template<typename T_Idx>
-                ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) get(T_Idx const & idx){
-                    return idx;
-                }
             };
 
         } // namespace detail
 
         template<typename T>
         static constexpr bool isXpr_v = detail::IsXpr<std::decay_t<T>>::value;
-
-        template<typename T>
-        static constexpr uint32_t getXprDims_v = detail::GetXprDims<std::decay_t<T>>::value;
 
 //operations like +,-,*,/ that dont modify their operands, and whose left scalar operands need to be broadcasted
 #define BINARY_READONLY_ARITHMETIC_OP(name, shortFunc)\
@@ -383,8 +330,7 @@ namespace alpaka::lockstep
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator=(T_Other const & other) const\
         {\
             auto rightXpr = Assignment::makeRightXprFromContainer(other);\
-            constexpr auto resultDims = getXprDims_v<decltype(*this)>;\
-            return BinaryXpr<Assignment, std::decay_t<decltype(*this)>, std::decay_t<decltype(rightXpr)>, resultDims>(*this, rightXpr);\
+            return BinaryXpr<Assignment, std::decay_t<decltype(*this)>, std::decay_t<decltype(rightXpr)>>(*this, rightXpr);\
         }
 
 //free operator definitions. Use these when possible. Expression can be the left or right operand.
@@ -393,15 +339,13 @@ namespace alpaka::lockstep
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left left, T_Right const& right)\
         {\
             auto rightXpr = name::makeRightXprFromContainer(right);\
-            constexpr auto resultDims = std::max(getXprDims_v<T_Left>, getXprDims_v<std::decay_t<decltype(rightXpr)>>);\
-            return BinaryXpr<name, T_Left, std::decay_t<decltype(rightXpr)>, resultDims>(left, rightXpr);\
+            return BinaryXpr<name, T_Left, std::decay_t<decltype(rightXpr)>>(left, rightXpr);\
         }\
         template<typename T_Left, typename T_Right, std::enable_if_t<!isXpr_v<T_Left> && isXpr_v<T_Right>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left const& left, T_Right right)\
         {\
             auto leftXpr = name::makeLeftXprFromContainer(left);\
-            constexpr auto resultDims = std::max(getXprDims_v<T_Right>, getXprDims_v<std::decay_t<decltype(leftXpr)>>);\
-            return BinaryXpr<name, decltype(leftXpr), T_Right, resultDims>(leftXpr, right);\
+            return BinaryXpr<name, decltype(leftXpr), T_Right>(leftXpr, right);\
         }
 
 
@@ -409,24 +353,21 @@ namespace alpaka::lockstep
         template<typename T_Operand, std::enable_if_t<isXpr_v<T_Operand>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Operand operand)\
         {\
-            constexpr auto resultDims = getXprDims_v<T_Operand>;\
-            return UnaryXpr<name, T_Operand, resultDims>(operand);\
+            return UnaryXpr<name, T_Operand>(operand);\
         }
 
 #define XPR_FREE_UNARY_OPERATOR_POSTFIX(name, shortFunc)\
         template<typename T_Operand, std::enable_if_t<isXpr_v<T_Operand>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Operand operand, int neededForPrefixAndPostfixDistinction)\
         {\
-            constexpr auto resultDims = getXprDims_v<T_Operand>;\
-            return UnaryXpr<name, T_Operand, resultDims>(operand);\
+            return UnaryXpr<name, T_Operand>(operand);\
         }
 
 #define XPR_UNARY_FREE_FUNCTION(name, internalFunc)\
         template<typename T_Operand, std::enable_if_t<alpaka::lockstep::expr::isXpr_v<T_Operand>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto internalFunc(T_Operand operand)\
         {\
-            constexpr auto resultDims = alpaka::lockstep::expr::getXprDims_v<T_Operand>;\
-            return alpaka::lockstep::expr::UnaryXpr<alpaka::lockstep::expr::name, T_Operand, resultDims>(operand);\
+            return alpaka::lockstep::expr::UnaryXpr<alpaka::lockstep::expr::name, T_Operand>(operand);\
         }
 
         XPR_FREE_BINARY_OPERATOR(Addition, +)
@@ -464,7 +405,7 @@ namespace alpaka::lockstep
 
         //scalar, read-only node
         template<typename T_Elem>
-        class ReadLeafXpr<T_Elem, 0u, dataLocationTags::scalar>{
+        class ReadLeafXpr<T_Elem, dataLocationTags::scalar>{
             ///TODO we always make a copy here, but if the value passed to the constructor is a const ref to some outside object that has the same lifetime as *this , we could save by const&
             T_Elem const m_source;
         public:
@@ -493,7 +434,7 @@ namespace alpaka::lockstep
 
         //scalar, write-only node
         template<typename T_Elem>
-        class WriteLeafXpr<T_Elem, 0u, dataLocationTags::scalar>{
+        class WriteLeafXpr<T_Elem, dataLocationTags::scalar>{
             T_Elem & m_dest;
         public:
 
@@ -518,7 +459,7 @@ namespace alpaka::lockstep
         //cannot be assigned to
         //can be made from pointers
         template<typename T_Elem>
-        class ReadLeafXpr<T_Elem, 1u, dataLocationTags::perBlockArray>{
+        class ReadLeafXpr<T_Elem, dataLocationTags::perBlockArray>{
             T_Elem const * const m_source;
         public:
 
@@ -545,7 +486,7 @@ namespace alpaka::lockstep
 
         //cannot be assigned to
         template<typename T_Elem, typename T_Config>
-        class ReadLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar<T_Config>>{
+        class ReadLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>{
             lockstep::Variable<T_Elem, T_Config> const& m_source;
         public:
 
@@ -571,7 +512,7 @@ namespace alpaka::lockstep
         //can be assigned to, and read from
         //can be made from pointers, or some container classes
         template<typename T_Elem>
-        class WriteLeafXpr<T_Elem, 1u, dataLocationTags::perBlockArray>{
+        class WriteLeafXpr<T_Elem, dataLocationTags::perBlockArray>{
             T_Elem * const m_dest;
         public:
 
@@ -601,7 +542,7 @@ namespace alpaka::lockstep
 
         //can be assigned to, and read from
         template<typename T_Elem, typename T_Config>
-        class WriteLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar<T_Config>>{
+        class WriteLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>{
             lockstep::Variable<T_Elem, T_Config> & m_dest;
         public:
 
@@ -628,7 +569,7 @@ namespace alpaka::lockstep
 
         };
 
-        template<typename T_Functor, typename T_Operand, uint32_t T_dimensions>
+        template<typename T_Functor, typename T_Operand>
         class UnaryXpr{
             std::conditional_t<std::is_same_v<T_Functor, Assignment>, T_Operand, const T_Operand> m_operand;
         public:
@@ -640,21 +581,15 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
-                constexpr auto dim = getXprDims_v<T_Operand>;
-                using DowngradeAsNeccessary = detail::DowngradeToDimensionality<dim>;
-                return T_Functor::SIMD_EVAL_F(m_operand[DowngradeAsNeccessary::get(i)]);
+                return T_Functor::SIMD_EVAL_F(m_operand[i]);
             }
         };
 
         //const left operand, cannot assign
-        template<typename T_Functor, typename T_Left, typename T_Right, uint32_t T_dimensions>
+        template<typename T_Functor, typename T_Left, typename T_Right>
         class BinaryXpr{
             std::conditional_t<std::is_same_v<T_Functor, Assignment>, T_Left, const T_Left> m_leftOperand;
             T_Right const m_rightOperand;
-
-            //Assignment always requests the type of element that needs to be assigned
-            template<typename T_Operand>
-            using optionalDowngrading = std::conditional_t<std::is_same_v<T_Functor, Assignment>, detail::MaintainDimensionality, detail::DowngradeToDimensionality<getXprDims_v<T_Operand>>>;
 
         public:
 
@@ -665,9 +600,7 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
-                using DowngradeLeft  = optionalDowngrading<T_Left>;
-                using DowngradeRight = optionalDowngrading<T_Right>;
-                return T_Functor::SIMD_EVAL_F(m_leftOperand[DowngradeLeft::get(i)], m_rightOperand[DowngradeRight::get(i)]);
+                return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
             }
 
             XPR_ASSIGN_OPERATOR
@@ -716,34 +649,34 @@ namespace alpaka::lockstep
         //single element, broadcasted if required
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const & elem){
-            return ReadLeafXpr<T_Elem, 0u, dataLocationTags::scalar>(elem);
+            return ReadLeafXpr<T_Elem, dataLocationTags::scalar>(elem);
         }
 
         //pointer to threadblocks data
         template<typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const * const ptr){
-            return ReadLeafXpr<T_Elem, 1u, dataLocationTags::perBlockArray>(ptr);
+            return ReadLeafXpr<T_Elem, dataLocationTags::perBlockArray>(ptr);
         }
 
         //lockstep ctxVar
         template<typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar){
-            return ReadLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar<T_Config>>(ctxVar);
+            return ReadLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem & elem){
-            return WriteLeafXpr<T_Elem, 0u, dataLocationTags::scalar>(elem);
+            return WriteLeafXpr<T_Elem, dataLocationTags::scalar>(elem);
         }
 
         template<typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem * const ptr){
-            return WriteLeafXpr<T_Elem, 1u, dataLocationTags::perBlockArray>(ptr);
+            return WriteLeafXpr<T_Elem, dataLocationTags::perBlockArray>(ptr);
         }
 
         template<typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(lockstep::Variable<T_Elem, T_Config> & ctxVar){
-            return WriteLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar<T_Config>>(ctxVar);
+            return WriteLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
 //clean up
