@@ -58,6 +58,8 @@ namespace alpaka
 
             using BaseArray = lockstep::DeviceCapableArray<T_Type, T_Config::maxIndicesPerWorker>;
 
+            using BaseArray::value_type;
+
             /** default constructor
              *
              * Data member are uninitialized.
