@@ -21,6 +21,7 @@ namespace alpaka::lockstep
     {
         namespace dataLocationTags{
             class scalar{};
+            template<typename T_Config>
             class ctxVar{};
             class perBlockArray{};
         }
@@ -35,23 +36,26 @@ namespace alpaka::lockstep
         template<typename T_Elem, uint32_t T_dimensions, typename dataLocationTag>
         class WriteLeafXpr;
 
-        template<typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
-        constexpr auto load(T_Elem const & elem);
+
+
+
+        template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const & elem);
 
         template<typename T_Elem>
-        constexpr auto load(T_Elem const * const ptr);
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const * const ptr);
 
-        template<template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
-        constexpr auto load(T_Variable<T_Elem, T_Config> const& ctxVar);
+        template<typename T_Config, typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar);
 
-        template<typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
-        constexpr auto store(T_Elem & elem);
+        template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem & elem);
 
         template<typename T_Elem>
-        constexpr auto store(T_Elem * const ptr);
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem * const ptr);
 
-        template<template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
-        constexpr auto store(T_Variable<T_Elem, T_Config> & ctxVar);
+        template<typename T_Config, typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(lockstep::Variable<T_Elem, T_Config> & ctxVar);
 
         namespace detail
         {
@@ -380,7 +384,7 @@ namespace alpaka::lockstep
         {\
             auto rightXpr = Assignment::makeRightXprFromContainer(other);\
             constexpr auto resultDims = getXprDims_v<decltype(*this)>;\
-            return BinaryXpr<Assignment, std::decay_t<decltype(*this)>, decltype(rightXpr), resultDims>(*this, rightXpr);\
+            return BinaryXpr<Assignment, std::decay_t<decltype(*this)>, std::decay_t<decltype(rightXpr)>, resultDims>(*this, rightXpr);\
         }
 
 //free operator definitions. Use these when possible. Expression can be the left or right operand.
@@ -390,7 +394,7 @@ namespace alpaka::lockstep
         {\
             auto rightXpr = name::makeRightXprFromContainer(right);\
             constexpr auto resultDims = std::max(getXprDims_v<T_Left>, getXprDims_v<std::decay_t<decltype(rightXpr)>>);\
-            return BinaryXpr<name, T_Left, decltype(rightXpr), resultDims>(left, rightXpr);\
+            return BinaryXpr<name, T_Left, std::decay_t<decltype(rightXpr)>, resultDims>(left, rightXpr);\
         }\
         template<typename T_Left, typename T_Right, std::enable_if_t<!isXpr_v<T_Left> && isXpr_v<T_Right>, int> = 0>\
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left const& left, T_Right right)\
@@ -507,6 +511,8 @@ namespace alpaka::lockstep
             {
                 return m_dest;
             }
+
+            XPR_ASSIGN_OPERATOR
         };
 
         //cannot be assigned to
@@ -539,7 +545,7 @@ namespace alpaka::lockstep
 
         //cannot be assigned to
         template<typename T_Elem, typename T_Config>
-        class ReadLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar>{
+        class ReadLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar<T_Config>>{
             lockstep::Variable<T_Elem, T_Config> const& m_source;
         public:
 
@@ -595,13 +601,14 @@ namespace alpaka::lockstep
 
         //can be assigned to, and read from
         template<typename T_Elem, typename T_Config>
-        class WriteLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar>{
+        class WriteLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar<T_Config>>{
             lockstep::Variable<T_Elem, T_Config> & m_dest;
         public:
 
             WriteLeafXpr(lockstep::Variable<T_Elem, T_Config> & dest) : m_dest(dest)
             {
             }
+
             //returns ref to allow assignment
             template<typename T_Foreach, uint32_t T_offset>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
@@ -666,8 +673,7 @@ namespace alpaka::lockstep
             XPR_ASSIGN_OPERATOR
         };
 
-        ///TODO T_Elem should maybe also be deduced?
-        template<typename T_Elem, typename T_Foreach, typename T_Xpr>
+        template<typename T_Foreach, typename T_Elem, typename T_Xpr>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void evaluateExpression(T_Foreach const& forEach, T_Xpr const& xpr)
         {
             constexpr auto lanes = laneCount_v<T_Elem>;
@@ -702,12 +708,13 @@ namespace alpaka::lockstep
             using ContextVar_t = Variable<Elem_t, typename std::decay_t<decltype(forEach)>::BaseConfig>;
 
             ContextVar_t tmp;
-            evaluateExpression<Elem_t, T_Foreach>(store(tmp) = xpr);
+            auto storeXpr = (store(tmp) = xpr);
+            evaluateExpression<T_Foreach, Elem_t, decltype(storeXpr)>(forEach, storeXpr);
             return tmp;
         }
 
         //single element, broadcasted if required
-        template<typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
+        template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const & elem){
             return ReadLeafXpr<T_Elem, 0u, dataLocationTags::scalar>(elem);
         }
@@ -719,12 +726,12 @@ namespace alpaka::lockstep
         }
 
         //lockstep ctxVar
-        template<template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Variable<T_Elem, T_Config> const& ctxVar){
-            return ReadLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar>(ctxVar);
+        template<typename T_Config, typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar){
+            return ReadLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
-        template<typename T_Elem, std::enable_if_t<!std::is_pointer_v<T_Elem>, int> = 0>
+        template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem & elem){
             return WriteLeafXpr<T_Elem, 0u, dataLocationTags::scalar>(elem);
         }
@@ -734,9 +741,9 @@ namespace alpaka::lockstep
             return WriteLeafXpr<T_Elem, 1u, dataLocationTags::perBlockArray>(ptr);
         }
 
-        template<template<typename, typename> typename T_Variable, typename T_Worker, typename T_Config, typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Variable<T_Elem, T_Config> & ctxVar){
-            return WriteLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar>(ctxVar);
+        template<typename T_Config, typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(lockstep::Variable<T_Elem, T_Config> & ctxVar){
+            return WriteLeafXpr<T_Elem, 1u, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
 //clean up
