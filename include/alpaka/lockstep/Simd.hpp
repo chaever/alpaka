@@ -354,7 +354,4 @@ namespace alpaka::lockstep
             return m_idx;
         }
     };
-
-    //for accessing the value of scalar Nodes (that only have one value)
-    class SingleElemIndex{};
 } // namespace alpaka::lockstep

@@ -36,9 +36,6 @@ namespace alpaka::lockstep
         template<typename T_Elem, typename dataLocationTag>
         class WriteLeafXpr;
 
-
-
-
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const & elem);
 
@@ -83,6 +80,11 @@ namespace alpaka::lockstep
             template<typename T_Elem, typename dataLocationTag>
             struct IsXpr<WriteLeafXpr<T_Elem, dataLocationTag> >{
                 static constexpr bool value = true;
+            };
+
+            template<typename T_Elem, typename T_TypeToWrite>
+            struct AssignmentDestination{
+                T_Elem & dest;
             };
 
         } // namespace detail
@@ -289,18 +291,26 @@ namespace alpaka::lockstep
 #undef UNARY_FREE_FUNCTION
 
         struct Assignment{
-            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_same_v<T_Right, Pack_t<T_Left, T_Left>>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const right){
+            /*Pack op Pack*/
+            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Right>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>> left, T_Right const right){
                 static_assert(!std::is_same_v<bool, T_Left>);
-                /*std::cout << "Assignment<Pack>::operator[]: before writing " << right[0] << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;*/
-                SimdInterface_t<T_Left, T_Left>::storeUnaligned(right, &left);
-                /*std::cout << "Assignment<Pack>::operator[]: after  writing " << left     << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;*/
-                return right;
+                auto const castedPack = SimdInterface_t<T_Left, T_Left>::elementWiseCast(right);
+                SimdInterface_t<T_Left, T_Left>::storeUnaligned(castedPack, &left.dest);
+                return castedPack;
             }
-            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_same_v<T_Right, Pack_t<T_Left, T_Left>>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left& left, T_Right const& right){
-                /*std::cout << "Assignment<Scalar>::operator[]: before writing " << right << " to " << reinterpret_cast<uint64_t>(&left) << std::endl;*/
-                return left = right;
+            /*Scalar op Scalar*/
+            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Right>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, T_Left> left, T_Right const& right){
+                return left.dest = right;
+            }
+            /*Pack op Scalar*/
+            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Right>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>> left, T_Right const& right){
+                static_assert(!std::is_same_v<bool, T_Left>);
+                auto const expandedValue = SimdInterface_t<T_Left, T_Left>::broadcast(right);
+                SimdInterface_t<T_Left, T_Left>::storeUnaligned(expandedValue, &left.dest);
+                return expandedValue;
             }
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other){
@@ -420,11 +430,6 @@ namespace alpaka::lockstep
                 return m_source;
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] SingleElemIndex const idx) const
-            {
-                return m_source;
-            }
-
             template<typename T_Foreach>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
@@ -445,12 +450,13 @@ namespace alpaka::lockstep
             template<typename T_Foreach, uint32_t T_offset>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] ScalarLookupIndex<T_Foreach, T_offset> const idx) const
             {
-                return m_dest;
+                return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest};
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] SingleElemIndex const idx) const
+            template<typename T_Foreach>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
-                return m_dest;
+                return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest};
             }
 
             XPR_ASSIGN_OPERATOR
@@ -521,19 +527,19 @@ namespace alpaka::lockstep
             }
             //returns ref to allow assignment
             template<typename T_Foreach, uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
             {
                 static_assert(!std::is_same_v<bool, T_Elem>);
-                auto const& worker = idx.m_forEach.getWorker();
-                return m_dest[T_offset + static_cast<uint32_t>(idx)];
+                return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest[T_offset + static_cast<uint32_t>(idx)]};
             }
 
             //returns ref to allow assignment
             template<typename T_Foreach>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](SimdLookupIndex<T_Foreach> const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
+                static_assert(!std::is_same_v<bool, T_Elem>);
                 auto const& worker = idx.m_forEach.getWorker();
-                return m_dest[laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))];
+                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>>{m_dest[laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))]};
             }
 
             XPR_ASSIGN_OPERATOR
@@ -552,17 +558,17 @@ namespace alpaka::lockstep
 
             //returns ref to allow assignment
             template<typename T_Foreach, uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
             {
-                return m_dest[T_offset + static_cast<uint32_t>(idx)];
+                return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest[T_offset + static_cast<uint32_t>(idx)]};
             }
 
             //returns ref to allow assignment
             template<typename T_Foreach>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto & operator[](SimdLookupIndex<T_Foreach> const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
                 static_assert(!std::is_same_v<bool, T_Elem>);
-                return m_dest[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)];
+                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>>{m_dest[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)]};
             }
 
             XPR_ASSIGN_OPERATOR
@@ -571,7 +577,7 @@ namespace alpaka::lockstep
 
         template<typename T_Functor, typename T_Operand>
         class UnaryXpr{
-            std::conditional_t<std::is_same_v<T_Functor, Assignment>, T_Operand, const T_Operand> m_operand;
+            const T_Operand m_operand;
         public:
 
             UnaryXpr(T_Operand operand):m_operand(operand)
