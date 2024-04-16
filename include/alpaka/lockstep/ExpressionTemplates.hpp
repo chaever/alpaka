@@ -663,7 +663,7 @@ namespace alpaka::lockstep
         }
 
         //single element, broadcasted if required
-        template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
+        template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> >
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const & elem){
             return ReadLeafXpr<T_Elem, dataLocationTags::scalar>(elem);
         }
@@ -680,7 +680,7 @@ namespace alpaka::lockstep
             return ReadLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
-        template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
+        template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> >
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem & elem){
             return WriteLeafXpr<T_Elem, dataLocationTags::scalar>(elem);
         }
