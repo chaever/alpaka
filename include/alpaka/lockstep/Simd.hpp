@@ -2,8 +2,12 @@
 
 #pragma once
 
+//on the CPU, we should have std::simd.
+#if defined ALPAKA_ACC_CPU_B_OMP2_T_SEQ_ENABLED || defined ALPAKA_ACC_CPU_B_SEQ_T_OMP2_ENABLED || defined ALPAKA_ACC_CPU_B_SEQ_T_SEQ_ENABLED || defined ALPAKA_ACC_CPU_B_SEQ_T_THREADS_ENABLED || defined ALPAKA_ACC_CPU_B_TBB_T_SEQ_ENABLED
+
+#define ALPAKA_USE_STD_SIMD 1
+
 #include <experimental/simd>
-#include <algorithm>
 
 //the following 2 operators/functions are features missing from std::simd that are needed.
 //if you get a compiler error that mentions that any of these functions are being re-declared/re-defined, delete the function as it is superfluous at that point.
@@ -41,6 +45,8 @@ std::abs(const std::experimental::simd<T_Elem, T_Abi>& floatPack)
     return tmp;
 }
 
+#endif
+
 namespace alpaka::lockstep
 {
     //provides Information about the pack framework the user selected via CMake
@@ -51,11 +57,12 @@ namespace alpaka::lockstep
         template<uint32_t T_simdMult>
         class StdSimdNTimesTag{};
 
-#if   0 || defined COMPILE_OPTION_FROM_CMAKE_1
+#if   0 && ALPAKA_USE_STD_SIMD
         using SelectedSimdBackendTag = simdBackendTags::StdSimdTag;
-#elif 1 || defined COMPILE_OPTION_FROM_CMAKE_2
+#elif 1 && ALPAKA_USE_STD_SIMD
         using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<2>;
 #else
+        //GPU must use scalar simd packs
         using SelectedSimdBackendTag = simdBackendTags::ScalarSimdTag;
 #endif
     } // namespace simdBackendTags
@@ -109,6 +116,8 @@ namespace alpaka::lockstep
             return static_cast<T_Elem>(pack);
         }
     };
+
+#if ALPAKA_USE_STD_SIMD
 
     template<typename T_SizeIndicator>
     struct GetSizeIndicator<T_SizeIndicator, simdBackendTags::ScalarSimdTag>{
@@ -322,6 +331,8 @@ namespace alpaka::lockstep
         using type = T_SizeIndicator;
     };
 
+#endif
+
     template<typename T_Foreach, uint32_t T_offset = 0u>
     class ScalarLookupIndex{
         std::size_t m_idx;
@@ -353,5 +364,7 @@ namespace alpaka::lockstep
         {
             return m_idx;
         }
+
+#undef ALPAKA_USE_STD_SIMD
     };
 } // namespace alpaka::lockstep
