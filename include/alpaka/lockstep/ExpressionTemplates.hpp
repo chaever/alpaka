@@ -37,13 +37,13 @@ namespace alpaka::lockstep
         class WriteLeafXpr;
 
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const & elem);
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(T_Elem const & elem);
 
         template<typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const * const ptr);
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(T_Elem const * const ptr);
 
         template<typename T_Config, typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar);
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar);
 
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem & elem);
@@ -85,6 +85,7 @@ namespace alpaka::lockstep
             template<typename T_Elem, typename T_TypeToWrite>
             struct AssignmentDestination{
                 T_Elem & dest;
+                static_assert(!std::is_const_v<T_Elem>);
             };
 
         } // namespace detail
@@ -664,19 +665,19 @@ namespace alpaka::lockstep
 
         //single element, broadcasted if required
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> >
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const & elem){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(T_Elem const & elem){
             return ReadLeafXpr<T_Elem, dataLocationTags::scalar>(elem);
         }
 
         //pointer to threadblocks data
         template<typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(T_Elem const * const ptr){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(T_Elem const * const ptr){
             return ReadLeafXpr<T_Elem, dataLocationTags::perBlockArray>(ptr);
         }
 
         //lockstep ctxVar
         template<typename T_Config, typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar){
             return ReadLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
