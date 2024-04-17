@@ -173,7 +173,7 @@ namespace alpaka::lockstep
             }\
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other const& other){\
-                return alpaka::lockstep::expr::load(other);\
+                return load(other);\
             }\
             template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){\
@@ -181,7 +181,7 @@ namespace alpaka::lockstep
             }\
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other){\
-                return alpaka::lockstep::expr::load(other);\
+                return load(other);\
             }\
             template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){\
@@ -228,7 +228,7 @@ namespace alpaka::lockstep
                 return std::forward<T_Other>(other);\
             }\
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other & other){\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other const& other){\
                 return load(other);\
             }\
             template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
@@ -344,48 +344,44 @@ namespace alpaka::lockstep
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator=(T_Other&& other)\
         {\
             decltype(auto) rightXpr = Assignment::makeRightXprFromContainer(std::forward<T_Other>(other));\
-            static_assert(!std::is_reference_v<decltype(rightXpr)>);\
-            static_assert(!std::is_reference_v<decltype(Assignment::makeRightXprFromContainer(std::forward<T_Other>(other)))>);\
-            static_assert(!std::is_const_v<decltype(*this)>);\
+            static_assert(std::is_const_v<std::remove_reference_t<decltype(rightXpr)>>);\
             return BinaryXpr<Assignment, std::remove_reference_t<decltype(*this)>, decltype(rightXpr)>::makeConstIfPossible(*this, rightXpr);\
         }
 
 //free operator definitions. Use these when possible. Expression can be the left or right operand.
 #define XPR_FREE_BINARY_OPERATOR(name, shortFunc)\
         template<typename T_Left, typename T_Right, std::enable_if_t< isXpr_v<T_Left>, int> = 0>\
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left left, T_Right const& right)\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left&& left, T_Right const& right)\
         {\
             decltype(auto) rightXpr = name::makeRightXprFromContainer(right);\
-            static_assert(!std::is_reference_v<decltype(rightXpr)> && !std::is_reference_v<T_Left>);\
-            return BinaryXpr<name, T_Left, decltype(rightXpr)>::makeConstIfPossible(left, rightXpr);\
+            return BinaryXpr<name, T_Left, decltype(rightXpr)>::makeConstIfPossible(std::forward<T_Left>(left), rightXpr);\
         }\
         template<typename T_Left, typename T_Right, std::enable_if_t<!isXpr_v<T_Left> && isXpr_v<T_Right>, int> = 0>\
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left const& left, T_Right right)\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Left const& left, T_Right&& right)\
         {\
             decltype(auto) leftXpr = name::makeLeftXprFromContainer(left);\
-            static_assert(!std::is_reference_v<decltype(leftXpr)> && !std::is_reference_v<T_Right>);\
-            return BinaryXpr<name, decltype(leftXpr), T_Right>::makeConstIfPossible(leftXpr, right);\
+            return BinaryXpr<name, decltype(leftXpr), T_Right>::makeConstIfPossible(leftXpr, std::forward<T_Right>(right));\
         }
 
 #define XPR_FREE_UNARY_OPERATOR_PREFIX(name, shortFunc)\
         template<typename T_Operand, std::enable_if_t<isXpr_v<T_Operand>, int> = 0>\
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Operand operand)\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Operand&& operand)\
         {\
-            return UnaryXpr<name, T_Operand>::makeConstIfPossible(operand);\
+            return UnaryXpr<name, T_Operand>::makeConstIfPossible(std::forward<T_Operand>(operand));\
         }
 
 #define XPR_FREE_UNARY_OPERATOR_POSTFIX(name, shortFunc)\
         template<typename T_Operand, std::enable_if_t<isXpr_v<T_Operand>, int> = 0>\
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Operand operand, int neededForPrefixAndPostfixDistinction)\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()shortFunc(T_Operand&& operand, [[unused]] int neededForPrefixAndPostfixDistinction)\
         {\
-            return UnaryXpr<name, T_Operand>::makeConstIfPossible(operand);\
+            return UnaryXpr<name, T_Operand>::makeConstIfPossible(std::forward<T_Operand>(operand));\
         }
 
 #define XPR_UNARY_FREE_FUNCTION(name, internalFunc)\
         template<typename T_Operand, std::enable_if_t<alpaka::lockstep::expr::isXpr_v<T_Operand>, int> = 0>\
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto internalFunc(T_Operand operand)\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto internalFunc(T_Operand&& operand)\
         {\
-            return alpaka::lockstep::expr::UnaryXpr<alpaka::lockstep::expr::name, T_Operand>::makeConstIfPossible(operand);\
+            return alpaka::lockstep::expr::UnaryXpr<alpaka::lockstep::expr::name, T_Operand>::makeConstIfPossible(std::forward<T_Operand>(operand));\
         }
 
         XPR_FREE_BINARY_OPERATOR(Addition, +)
@@ -612,19 +608,22 @@ namespace alpaka::lockstep
 
         template<typename T_Functor, typename T_Operand>
         class UnaryXpr{
-            T_Operand m_operand;
+            std::remove_reference_t<T_Operand> m_operand;
 
             static_assert(isXpr_v<T_Operand>);
-            static_assert(!std::is_reference_v<T_Operand>);
 
             constexpr static bool allChildrenAreConst = std::is_const_v<T_Operand>;
             using this_t = UnaryXpr<T_Functor, T_Operand>;
-        public:
+
             using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const this_t, this_t>;
 
-            UnaryXpr(T_Operand operand):m_operand(operand)
+            template<typename T_OperandXpr>
+            UnaryXpr(T_OperandXpr&& operand):m_operand(operand)
             {
+                static_assert(std::is_same_v<std::decay_t<T_OperandXpr>, std::decay_t<T_Operand>>);
             }
+
+        public:
 
             //returns a unary Xpr that is const if both its operands were
             template<typename... T_Args>
@@ -639,26 +638,27 @@ namespace alpaka::lockstep
             }
         };
 
-        //const left operand, cannot assign
+        //Two operand expression objects combined via a Functor
         template<typename T_Functor, typename T_Left, typename T_Right>
         class BinaryXpr{
-            T_Left m_leftOperand;
-            T_Right m_rightOperand;
+            std::remove_reference_t<T_Left> m_leftOperand;
+            std::remove_reference_t<T_Right> m_rightOperand;
 
             static_assert(isXpr_v<T_Left> && isXpr_v<T_Right>);
-            static_assert(!std::is_reference_v<T_Left> && !std::is_reference_v<T_Right>);
 
-            static_assert(!std::is_same_v<T_Functor, Assignment> || (!std::is_const_v<T_Left> && std::is_const_v<T_Right>));
-
-            constexpr static bool allChildrenAreConst = std::is_const_v<T_Left> && std::is_const_v<T_Right>;
+            constexpr static bool allChildrenAreConst = std::is_const_v<decltype(m_leftOperand)> && std::is_const_v<decltype(m_rightOperand)>;
             using this_t = BinaryXpr<T_Functor, T_Left, T_Right>;
 
-        public:
             using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const this_t, this_t>;
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE BinaryXpr(T_Left left, T_Right right):m_leftOperand(left), m_rightOperand(right)
+            template<typename T_LeftXpr, typename T_RightXpr>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE BinaryXpr(T_LeftXpr&& left, T_RightXpr&& right):m_leftOperand(left), m_rightOperand(right)
             {
+                static_assert(std::is_same_v<std::decay_t<T_Left>, std::decay_t<T_LeftXpr>>);
+                static_assert(std::is_same_v<std::decay_t<T_Right>, std::decay_t<T_RightXpr>>);
             }
+
+        public:
 
             //returns a binary Xpr that is const if both its operands were
             template<typename... T_Args>
@@ -669,6 +669,14 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
+
+                //assert that, for assignment Expressions, the left side is nonConst and the right side is const
+                static_assert(!std::is_same_v<T_Functor, Assignment> || !allChildrenAreConst);
+                static_assert(!std::is_same_v<T_Functor, Assignment> || !std::is_const_v<ConstInfluencedAlias_t>);
+                static_assert(!std::is_same_v<T_Functor, Assignment> || !std::is_const_v<decltype(m_leftOperand )>);
+                static_assert(!std::is_same_v<T_Functor, Assignment> ||  std::is_const_v<decltype(m_rightOperand)>);
+                static_assert(!std::is_same_v<T_Functor, Assignment> || !std::is_const_v<std::remove_reference_t<decltype(*this)>>);
+
                 return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
             }
 
@@ -717,16 +725,12 @@ namespace alpaka::lockstep
 
         template<typename T_Foreach, typename T_Xpr>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto evalToCtxVar(T_Foreach const& forEach, T_Xpr&& xpr){
-
-            using Elem_t = std::decay_t<decltype(xpr[std::declval<ScalarLookupIndex<T_Foreach, 0u>>()])>;
+            using Elem_t = std::decay_t<decltype(std::forward<T_Xpr>(xpr)[std::declval<ScalarLookupIndex<T_Foreach, 0u>>()])>;
             using ContextVar_t = Variable<Elem_t, typename std::decay_t<decltype(forEach)>::BaseConfig>;
 
             ContextVar_t tmp;
-            static_assert(!std::is_const_v<decltype(store(tmp))>);
-            static_assert(std::is_const_v<decltype(load(0.0f))>);
-            //static_assert(std::is_const_v<decltype(std::forward<T_Xpr>(xpr))>);
             decltype(auto) storeXpr = (store(tmp) = std::forward<T_Xpr>(xpr));
-            static_assert(!std::is_const_v<decltype(storeXpr)> && !std::is_reference_v<decltype(storeXpr)>);
+            static_assert(!std::is_const_v<decltype(storeXpr)>);
             evaluateExpression<T_Foreach, Elem_t, decltype(storeXpr)>(forEach, std::move(storeXpr));
             return tmp;
         }
