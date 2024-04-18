@@ -32,6 +32,41 @@ namespace std::experimental
         //re-use other operator definition
         return right+left;
     }
+
+    template<typename T_Elem, typename T_Abi>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::enable_if_t<std::is_arithmetic_v<T_Elem>, std::experimental::simd<T_Elem, T_Abi>> operator-(std::experimental::simd<T_Elem, T_Abi> const& left, std::experimental::simd_mask<T_Elem, T_Abi> const& right)
+    {
+        using Pack = std::experimental::simd<T_Elem, T_Abi>;
+        ///TODO once std::experimental::where supports it, make this constexpr
+        /*constexpr*/ Pack tmp(left);
+        std::experimental::where(right, tmp) -= Pack(1);
+        return tmp;
+    }
+
+    template<typename T_Elem, typename T_Abi>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator-(std::experimental::simd_mask<T_Elem, T_Abi> const& left, std::experimental::simd<T_Elem, T_Abi> const& right)
+    {
+        //re-use other operator definition
+        return right-left;
+    }
+
+    template<typename T_Elem, typename T_Abi>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::enable_if_t<std::is_arithmetic_v<T_Elem>, std::experimental::simd<T_Elem, T_Abi>> operator*(std::experimental::simd<T_Elem, T_Abi> const& left, std::experimental::simd_mask<T_Elem, T_Abi> const& right)
+    {
+        using Pack = std::experimental::simd<T_Elem, T_Abi>;
+        ///TODO once std::experimental::where supports it, make this constexpr
+        /*constexpr*/ Pack tmp(left);
+        std::experimental::where(!right, tmp) *= Pack(0);
+        return tmp;
+    }
+
+    template<typename T_Elem, typename T_Abi>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator*(std::experimental::simd_mask<T_Elem, T_Abi> const& left, std::experimental::simd<T_Elem, T_Abi> const& right)
+    {
+        //re-use other operator definition
+        return right*left;
+    }
+
 }
 
 //std::abs for floating-point-based simd-packs (currently not supported by default)
