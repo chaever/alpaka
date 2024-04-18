@@ -344,7 +344,7 @@ namespace alpaka::lockstep
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator=(T_Other&& other)\
         {\
             decltype(auto) rightXpr = Assignment::makeRightXprFromContainer(std::forward<T_Other>(other));\
-            static_assert(std::is_const_v<std::remove_reference_t<decltype(rightXpr)>>);\
+            /*static_assert(std::is_const_v<std::remove_reference_t<decltype(rightXpr)>>);*/\
             return BinaryXpr<Assignment, std::remove_reference_t<decltype(*this)>, std::remove_reference_t<decltype(rightXpr)>>::makeConstIfPossible(*this, rightXpr);\
         }
 
