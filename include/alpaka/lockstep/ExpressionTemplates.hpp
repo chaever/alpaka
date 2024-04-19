@@ -620,7 +620,7 @@ namespace alpaka::lockstep
             using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const this_t, this_t>;
 
             template<typename T_OperandXpr>
-            UnaryXpr(T_OperandXpr&& operand):m_operand(operand)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE UnaryXpr(T_OperandXpr&& operand):m_operand(operand)
             {
                 static_assert(std::is_same_v<std::decay_t<T_OperandXpr>, std::decay_t<T_Operand>>);
             }
