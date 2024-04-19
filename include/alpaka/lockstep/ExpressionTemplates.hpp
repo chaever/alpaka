@@ -620,6 +620,10 @@ namespace alpaka::lockstep
 
         public:
 
+            UnaryXpr(UnaryXpr const&) = default;
+            UnaryXpr(UnaryXpr &)      = default;
+            UnaryXpr(UnaryXpr &&)     = default;
+
             template<typename T_OperandXpr>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE UnaryXpr(T_OperandXpr&& operand):m_operand(std::forward<T_OperandXpr>(operand))
             {
@@ -666,6 +670,10 @@ namespace alpaka::lockstep
                 static_assert(std::is_same_v<std::decay_t<T_Left>, std::decay_t<T_LeftXpr>>);
                 static_assert(std::is_same_v<std::decay_t<T_Right>, std::decay_t<T_RightXpr>>);
             }
+
+            BinaryXpr(BinaryXpr const&) = default;
+            BinaryXpr(BinaryXpr &)      = default;
+            BinaryXpr(BinaryXpr &&)     = default;
 
             //returns a binary Xpr that is const if both its operands were
             template<typename... T_Args>
