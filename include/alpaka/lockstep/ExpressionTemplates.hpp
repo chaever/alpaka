@@ -426,7 +426,7 @@ namespace alpaka::lockstep
 
         public:
 
-            ReadLeafXpr(T_Elem const& source) : m_source(source)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ReadLeafXpr(T_Elem const& source) : m_source(source)
             {
             }
 
@@ -449,7 +449,7 @@ namespace alpaka::lockstep
             T_Elem & m_dest;
         public:
 
-            WriteLeafXpr(T_Elem & dest) : m_dest(dest)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE WriteLeafXpr(T_Elem & dest) : m_dest(dest)
             {
             }
 
@@ -476,7 +476,7 @@ namespace alpaka::lockstep
         public:
 
             //takes a ptr that points to start of domain
-            ReadLeafXpr(T_Elem const * const source) : m_source(source)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ReadLeafXpr(T_Elem const * const source) : m_source(source)
             {
             }
 
@@ -487,6 +487,7 @@ namespace alpaka::lockstep
 
                 //std::cout << "ReadLeafXpr <dataLocationTags::perBlockArray>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): accessing index " << T_offset + worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx) << std::endl;
                 //std::cout << "ReadLeafXpr <dataLocationTags::perBlockArray>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): value is: " << m_source[T_offset + worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)] << std::endl;
+
                 return m_source[T_offset + worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)];
             }
 
@@ -495,8 +496,13 @@ namespace alpaka::lockstep
             {
                 static_assert(!std::is_same_v<bool, T_Elem>);
                 const auto & worker = idx.m_forEach.getWorker();
+
                 //std::cout << "ReadLeafXpr <dataLocationTags::perBlockArray>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](SimdLookupIndex): accessing index " << laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)) << std::endl;
                 //std::cout << "ReadLeafXpr <dataLocationTags::perBlockArray>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](SimdLookupIndex): value is: " << m_source[laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))] << std::endl;
+                printf("ReadLeafXpr<perBlockArray> thread %d in block %d: before load\n", threadIdx.x, blockIdx.x);
+                auto tmp = SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(m_source + laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)));
+                printf("ReadLeafXpr<perBlockArray> thread %d in block %d: after  load, value is %d\n", threadIdx.x, blockIdx.x, tmp);
+
                 return SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(m_source + laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)));
             }
         };
@@ -507,8 +513,9 @@ namespace alpaka::lockstep
             lockstep::Variable<T_Elem, T_Config> const& m_source;
         public:
 
-            ReadLeafXpr(lockstep::Variable<T_Elem, T_Config> const& source) : m_source(source)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ReadLeafXpr(lockstep::Variable<T_Elem, T_Config> const& source) : m_source(source)
             {
+                printf("ReadLeafXpr<ctxVar> thread %d in block %d: in CTOR\n", threadIdx.x, blockIdx.x);
                 //std::cout << "ReadLeafXpr <dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::Constructor(ctxVar): object at " << reinterpret_cast<uint64_t>(this) << " has &ctxVar=" << reinterpret_cast<uint64_t>(&source) << std::endl;
             }
 
@@ -530,6 +537,10 @@ namespace alpaka::lockstep
                 //std::cout << "ReadLeafXpr <dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](SimdLookupIndex): &ctxVar[0]=" << reinterpret_cast<uint64_t>(&m_source[0]) << ", &ctxVar[offset]=" << reinterpret_cast<uint64_t>(&m_source[offset]) << std::endl;
                 //std::cout << "ReadLeafXpr <dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](SimdLookupIndex): &ctxVar=" << reinterpret_cast<uint64_t>(&m_source) << std::endl;
                 //std::cout << "ReadLeafXpr <dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](SimdLookupIndex): value is: " << m_source[offset] << std::endl;
+                printf("ReadLeafXpr<ctxVar> thread %d in block %d: before load\n", threadIdx.x, blockIdx.x);
+                auto tmp = SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(&(m_source[offset]));
+                printf("ReadLeafXpr<ctxVar> thread %d in block %d: after  load, value is %d\n", threadIdx.x, blockIdx.x, tmp);
+
                 return SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(&(m_source[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)]));
             }
         };
@@ -541,7 +552,7 @@ namespace alpaka::lockstep
             T_Elem * const m_dest;
         public:
 
-            WriteLeafXpr(T_Elem * const dest) : m_dest(dest)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE WriteLeafXpr(T_Elem * const dest) : m_dest(dest)
             {
             }
             //returns ref to allow assignment
@@ -565,6 +576,10 @@ namespace alpaka::lockstep
                 const auto offset = laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx));
                 //std::cout << "WriteLeafXpr<dataLocationTags::perBlockArray>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](SimdLookupIndex): accessing index " << offset << std::endl;
                 //std::cout << "WriteLeafXpr<dataLocationTags::perBlockArray>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](SimdLookupIndex): accessed address is: " << reinterpret_cast<uint64_t>(&m_dest[offset]) << std::endl;
+                printf("WriteLeafXpr<perBlockArray> thread %d in block %d: before load\n", threadIdx.x, blockIdx.x);
+                auto tmp = m_dest[offset];
+                printf("WriteLeafXpr<perBlockArray> thread %d in block %d: after  load, value is %d\n", threadIdx.x, blockIdx.x, tmp);
+
                 return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>>{m_dest[laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))]};
             }
 
@@ -578,7 +593,7 @@ namespace alpaka::lockstep
             lockstep::Variable<T_Elem, T_Config> & m_dest;
         public:
 
-            WriteLeafXpr(lockstep::Variable<T_Elem, T_Config> & dest) : m_dest(dest)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE WriteLeafXpr(lockstep::Variable<T_Elem, T_Config> & dest) : m_dest(dest)
             {
             }
 
@@ -600,7 +615,11 @@ namespace alpaka::lockstep
                 const auto offset = laneCount_v<T_Elem>*static_cast<uint32_t>(idx);
                 //std::cout << "WriteLeafXpr<dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](SimdLookupIndex): &ctxVar=" << reinterpret_cast<uint64_t>(&m_dest) << std::endl;
                 //std::cout << "WriteLeafXpr<dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](SimdLookupIndex): &ctxVar[0]=" << reinterpret_cast<uint64_t>(&m_dest[0]) << ", &ctxVar[offset=" << offset << "]=" << reinterpret_cast<uint64_t>(&m_dest[offset]) << std::endl;
-                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>>{m_dest[offset]};
+                printf("WriteLeafXpr<ctxVar> thread %d in block %d: before load\n", threadIdx.x, blockIdx.x);
+                auto tmp = m_dest[offset];
+                printf("WriteLeafXpr<ctxVar> thread %d in block %d: after  load, value is %d\n", threadIdx.x, blockIdx.x, tmp);
+
+                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>>{m_dest[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)]};
             }
 
             XPR_ASSIGN_OPERATOR
@@ -769,7 +788,14 @@ namespace alpaka::lockstep
         //lockstep ctxVar
         template<typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar){
-            return ReadLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
+            printf("expr::load(ctxVar):thread %d in block %d: first value of ctxVar is %d\n", threadIdx.x, blockIdx.x, ctxVar[lockstep::Idx(0,0)]);
+
+            auto const& refCopy(ctxVar);
+
+            printf("expr::load(ctxVar):thread %d in block %d: before Expr construction\n", threadIdx.x, blockIdx.x);
+            decltype(auto) tmp = ReadLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
+            printf("expr::load(ctxVar):thread %d in block %d: after  Expr construction\n", threadIdx.x, blockIdx.x);
+            return tmp;
         }
 
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> >
@@ -793,3 +819,4 @@ namespace alpaka::lockstep
 
     } // namespace expr
 } // namespace alpaka::lockstep
+
