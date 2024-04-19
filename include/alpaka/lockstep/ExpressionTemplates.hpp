@@ -616,21 +616,20 @@ namespace alpaka::lockstep
             T_Operand m_operand;
 
             constexpr static bool allChildrenAreConst = std::is_const_v<T_Operand>;
-            using this_t = UnaryXpr<T_Functor, T_Operand>;
-            using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const this_t, this_t>;
+            using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const UnaryXpr, UnaryXpr>;
+
+        public:
 
             template<typename T_OperandXpr>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE UnaryXpr(T_OperandXpr&& operand):m_operand(operand)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE UnaryXpr(T_OperandXpr&& operand):m_operand(std::forward<T_OperandXpr>(operand))
             {
                 static_assert(std::is_same_v<std::decay_t<T_OperandXpr>, std::decay_t<T_Operand>>);
             }
 
-        public:
-
             //returns a unary Xpr that is const if both its operands were
             template<typename... T_Args>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static ConstInfluencedAlias_t makeConstIfPossible(T_Args&&... args){
-                return this_t{std::forward<T_Args>(args)...};
+                return UnaryXpr{std::forward<T_Args>(args)...};
             }
 
             template<typename T_Idx>
@@ -650,8 +649,6 @@ namespace alpaka::lockstep
         template<typename T_Functor, typename T_Left, typename T_Right>
         class BinaryXpr{
 
-        public:///TODO remove, see below
-
             static_assert(isXpr_v<T_Left> && isXpr_v<T_Right>);
             static_assert(!std::is_reference_v<T_Left> && !std::is_reference_v<T_Right>);
 
@@ -659,35 +656,26 @@ namespace alpaka::lockstep
             T_Right m_rightOperand;
 
             constexpr static bool allChildrenAreConst = std::is_const_v<T_Left> && std::is_const_v<T_Right>;
-            using this_t = BinaryXpr<T_Functor, T_Left, T_Right>;
+            using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const BinaryXpr, BinaryXpr>;
 
-            using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const this_t, this_t>;
+        public:
 
             template<typename T_LeftXpr, typename T_RightXpr>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE BinaryXpr(T_LeftXpr&& left, T_RightXpr&& right):m_leftOperand(left), m_rightOperand(right)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE BinaryXpr(T_LeftXpr&& left, T_RightXpr&& right):m_leftOperand(std::forward<T_LeftXpr>(left)), m_rightOperand(std::forward<T_RightXpr>(right))
             {
                 static_assert(std::is_same_v<std::decay_t<T_Left>, std::decay_t<T_LeftXpr>>);
                 static_assert(std::is_same_v<std::decay_t<T_Right>, std::decay_t<T_RightXpr>>);
             }
 
-        //public:
-
             //returns a binary Xpr that is const if both its operands were
             template<typename... T_Args>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr static ConstInfluencedAlias_t makeConstIfPossible(T_Args&&... args){
-                return this_t{std::forward<T_Args>(args)...};
+                return BinaryXpr{std::forward<T_Args>(args)...};
             }
 
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i)
             {
-
-                //static_assert(!std::is_same_v<T_Functor, Assignment> || !allChildrenAreConst);
-                //static_assert(!std::is_same_v<T_Functor, Assignment> || !std::is_const_v<ConstInfluencedAlias_t>);
-                //static_assert(!std::is_same_v<T_Functor, Assignment> || !std::is_const_v<decltype(m_leftOperand )>);
-                //static_assert(!std::is_same_v<T_Functor, Assignment> ||  std::is_const_v<decltype(m_rightOperand)>);
-                //static_assert(!std::is_same_v<T_Functor, Assignment> || !std::is_const_v<std::remove_reference_t<decltype(*this)>>);
-
                 return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
             }
 
