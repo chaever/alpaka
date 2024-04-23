@@ -431,13 +431,13 @@ namespace alpaka::lockstep
             }
 
             template<typename T_Foreach, uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] ScalarLookupIndex<T_Foreach, T_offset> const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const) const
             {
                 return m_source;
             }
 
             template<typename T_Foreach>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const) const
             {
                 return m_source;
             }
@@ -454,13 +454,13 @@ namespace alpaka::lockstep
             }
 
             template<typename T_Foreach, uint32_t T_offset>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] ScalarLookupIndex<T_Foreach, T_offset> const idx)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const)
             {
                 return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest};
             }
 
             template<typename T_Foreach>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[]([[unused]] SimdLookupIndex<T_Foreach> const idx)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const)
             {
                 return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest};
             }
