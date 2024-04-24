@@ -426,7 +426,7 @@ namespace alpaka::lockstep
 
         public:
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ReadLeafXpr(T_Elem const& source) : m_source(source)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ReadLeafXpr(T_Elem const& source) : m_source(source)
             {
             }
 
@@ -449,7 +449,7 @@ namespace alpaka::lockstep
             T_Elem & m_dest;
         public:
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE WriteLeafXpr(T_Elem & dest) : m_dest(dest)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(T_Elem & dest) : m_dest(dest)
             {
             }
 
@@ -476,7 +476,7 @@ namespace alpaka::lockstep
         public:
 
             //takes a ptr that points to start of domain
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ReadLeafXpr(T_Elem const * const source) : m_source(source)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ReadLeafXpr(T_Elem const * const source) : m_source(source)
             {
             }
 
@@ -513,7 +513,7 @@ namespace alpaka::lockstep
             lockstep::Variable<T_Elem, T_Config> const& m_source;
         public:
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ReadLeafXpr(lockstep::Variable<T_Elem, T_Config> const& source) : m_source(source)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ReadLeafXpr(lockstep::Variable<T_Elem, T_Config> const& source) : m_source(source)
             {
                 //printf("ReadLeafXpr<ctxVar> thread %d in block %d: in CTOR\n", threadIdx.x, blockIdx.x);
                 //std::cout << "ReadLeafXpr <dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::Constructor(ctxVar): object at " << reinterpret_cast<uint64_t>(this) << " has &ctxVar=" << reinterpret_cast<uint64_t>(&source) << std::endl;
@@ -552,7 +552,7 @@ namespace alpaka::lockstep
             T_Elem * const m_dest;
         public:
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE WriteLeafXpr(T_Elem * const dest) : m_dest(dest)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(T_Elem * const dest) : m_dest(dest)
             {
             }
             //returns ref to allow assignment
@@ -593,7 +593,7 @@ namespace alpaka::lockstep
             lockstep::Variable<T_Elem, T_Config> & m_dest;
         public:
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE WriteLeafXpr(lockstep::Variable<T_Elem, T_Config> & dest) : m_dest(dest)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(lockstep::Variable<T_Elem, T_Config> & dest) : m_dest(dest)
             {
             }
 
@@ -644,14 +644,14 @@ namespace alpaka::lockstep
             UnaryXpr(UnaryXpr &&)     = default;
 
             template<typename T_OperandXpr>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE UnaryXpr(T_OperandXpr&& operand):m_operand(std::forward<T_OperandXpr>(operand))
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr UnaryXpr(T_OperandXpr&& operand):m_operand(std::forward<T_OperandXpr>(operand))
             {
                 static_assert(std::is_same_v<std::decay_t<T_OperandXpr>, std::decay_t<T_Operand>>);
             }
 
             //returns a unary Xpr that is const if both its operands were
             template<typename... T_Args>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static ConstInfluencedAlias_t makeConstIfPossible(T_Args&&... args){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr ConstInfluencedAlias_t makeConstIfPossible(T_Args&&... args){
                 return UnaryXpr{std::forward<T_Args>(args)...};
             }
 
@@ -684,15 +684,15 @@ namespace alpaka::lockstep
         public:
 
             template<typename T_LeftXpr, typename T_RightXpr>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE BinaryXpr(T_LeftXpr&& left, T_RightXpr&& right):m_leftOperand(std::forward<T_LeftXpr>(left)), m_rightOperand(std::forward<T_RightXpr>(right))
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr BinaryXpr(T_LeftXpr&& left, T_RightXpr&& right):m_leftOperand(std::forward<T_LeftXpr>(left)), m_rightOperand(std::forward<T_RightXpr>(right))
             {
                 static_assert(std::is_same_v<std::decay_t<T_Left>, std::decay_t<T_LeftXpr>>);
                 static_assert(std::is_same_v<std::decay_t<T_Right>, std::decay_t<T_RightXpr>>);
             }
 
-            BinaryXpr(BinaryXpr const&) = default;
-            BinaryXpr(BinaryXpr &)      = default;
-            BinaryXpr(BinaryXpr &&)     = default;
+            constexpr BinaryXpr(BinaryXpr const&) = default;
+            constexpr BinaryXpr(BinaryXpr &)      = default;
+            constexpr BinaryXpr(BinaryXpr &&)     = default;
 
             //returns a binary Xpr that is const if both its operands were
             template<typename... T_Args>
@@ -716,7 +716,7 @@ namespace alpaka::lockstep
         };
 
         template<typename T_Foreach, typename T_Elem, typename T_Xpr>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void evaluateExpression(T_Foreach const& forEach, T_Xpr&& xpr)
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr void evaluateExpression(T_Foreach const& forEach, T_Xpr&& xpr)
         {
             constexpr auto lanes = laneCount_v<T_Elem>;
             constexpr auto numWorkers = std::decay_t<decltype(forEach.getWorker())>::numWorkers;
@@ -761,7 +761,7 @@ namespace alpaka::lockstep
         }
 
         template<typename T_Foreach, typename T_Xpr>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto evalToCtxVar(T_Foreach const& forEach, T_Xpr&& xpr){
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto evalToCtxVar(T_Foreach const& forEach, T_Xpr&& xpr){
             using Elem_t = std::decay_t<decltype(std::forward<T_Xpr>(xpr)[std::declval<ScalarLookupIndex<T_Foreach, 0u>>()])>;
             using ContextVar_t = Variable<Elem_t, typename std::decay_t<decltype(forEach)>::BaseConfig>;
 
