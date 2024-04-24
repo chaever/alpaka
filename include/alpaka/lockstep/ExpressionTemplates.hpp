@@ -86,6 +86,9 @@ namespace alpaka::lockstep
             struct AssignmentDestination{
                 T_Elem & dest;
                 static_assert(!std::is_const_v<T_Elem>);
+                constexpr AssignmentDestination(T_Elem & elem):dest(elem)
+                {
+                }
             };
 
         } // namespace detail
@@ -639,9 +642,9 @@ namespace alpaka::lockstep
 
         public:
 
-            UnaryXpr(UnaryXpr const&) = default;
-            UnaryXpr(UnaryXpr &)      = default;
-            UnaryXpr(UnaryXpr &&)     = default;
+            constexpr UnaryXpr(UnaryXpr const&) = default;
+            constexpr UnaryXpr(UnaryXpr &)      = default;
+            constexpr UnaryXpr(UnaryXpr &&)     = default;
 
             template<typename T_OperandXpr>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr UnaryXpr(T_OperandXpr&& operand):m_operand(std::forward<T_OperandXpr>(operand))
