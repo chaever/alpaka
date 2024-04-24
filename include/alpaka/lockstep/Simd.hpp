@@ -71,7 +71,7 @@ namespace std::experimental
 
 //std::abs for floating-point-based simd-packs (currently not supported by default)
 template <typename T_Elem, typename T_Abi>
-std::enable_if_t<std::is_floating_point_v<T_Elem> && std::is_signed_v<T_Elem>, std::experimental::simd<T_Elem, T_Abi>>
+ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::enable_if_t<std::is_floating_point_v<T_Elem> && std::is_signed_v<T_Elem>, std::experimental::simd<T_Elem, T_Abi>>
 std::abs(const std::experimental::simd<T_Elem, T_Abi>& floatPack)
 {
     using Pack = std::experimental::simd<T_Elem, T_Abi>;
@@ -130,23 +130,23 @@ namespace alpaka::lockstep
 
         inline static constexpr std::size_t laneCount = 1u;
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(const T_Elem* const mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto loadUnaligned(const T_Elem* const mem) -> Pack_t
         {
             return *mem;
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, T_Elem* const mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr void storeUnaligned(const Pack_t t, T_Elem* const mem)
         {
             *mem = t;
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto broadcast(T_Elem const & elem) -> Pack_t
         {
             return elem;
         }
 
         template<typename Source_t>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(Source_t const& pack) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(Source_t const& pack) -> Pack_t
         {
             return static_cast<T_Elem>(pack);
         }
@@ -177,24 +177,24 @@ namespace alpaka::lockstep
 
         inline static constexpr std::size_t laneCount = Pack_t::size();
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(T_Elem const * const mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto loadUnaligned(T_Elem const * const mem) -> Pack_t
         {
             return Pack_t(mem, std::experimental::element_aligned);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, T_Elem * const mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr void storeUnaligned(const Pack_t t, T_Elem * const mem)
         {
             t.copy_to(mem, std::experimental::element_aligned);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const& elem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto broadcast(T_Elem const& elem) -> Pack_t
         {
             return Pack_t(elem);
         }
 
         //got pack, own elements are non-bool
         template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) // -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) // -> Pack_t
         {
             constexpr bool isTrivial=std::is_same_v<T_Source_Elem, T_Elem>;
             static_assert(isTrivial != (std::is_same_v<T_Source_Elem, uint32_t> && std::is_same_v<T_Elem, float>));
@@ -254,7 +254,7 @@ namespace alpaka::lockstep
 
         //got mask, own elements are non-bool
         template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
         {
             static_assert(std::is_arithmetic_v<T_Source_Elem>);
             Pack_t tmp(0);
@@ -264,7 +264,7 @@ namespace alpaka::lockstep
 
         //got pack, own elements are bool
         template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
         {
             //arithmetic types casted to bool are true if != 0
             return pack != 0;
@@ -272,7 +272,7 @@ namespace alpaka::lockstep
 
         //got mask, own elements are bool
         template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
         {
             return mask;
         }
@@ -307,31 +307,31 @@ namespace alpaka::lockstep
 
         inline static constexpr std::size_t laneCount = Pack_t::size();
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto loadUnaligned(T_Elem const * const mem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto loadUnaligned(T_Elem const * const mem) -> Pack_t
         {
             return Pack_t(mem, std::experimental::element_aligned);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC void storeUnaligned(const Pack_t t, T_Elem * const mem)
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr void storeUnaligned(const Pack_t t, T_Elem * const mem)
         {
             t.copy_to(mem, std::experimental::element_aligned);
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto broadcast(T_Elem const & elem) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto broadcast(T_Elem const & elem) -> Pack_t
         {
             return Pack_t(elem);
         }
 
         //got pack, own elements are non-bool
         template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
         {
             return std::experimental::static_simd_cast<T_Elem, T_Source_Elem, T_Source_Abi>(pack);
         }
 
         //got mask, own elements are non-bool
         template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
         {
             static_assert(std::is_arithmetic_v<T_Source_Elem>);
             Pack_t tmp(0);
@@ -341,7 +341,7 @@ namespace alpaka::lockstep
 
         //got pack, own elements are bool
         template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
         {
             //arithmetic types casted to bool are true if != 0
             return pack != 0;
@@ -349,7 +349,7 @@ namespace alpaka::lockstep
 
         //got mask, own elements are bool
         template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
+        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
         {
             return mask;
         }
@@ -375,7 +375,7 @@ namespace alpaka::lockstep
         static constexpr auto offset = T_offset;
         T_Foreach const& m_forEach;
 
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE ScalarLookupIndex(T_Foreach const& forEach, const std::size_t idx): m_forEach(forEach), m_idx(idx){}
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ScalarLookupIndex(T_Foreach const& forEach, const std::size_t idx): m_forEach(forEach), m_idx(idx){}
 
         //allow conversion to flat number, but not implicitly
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit constexpr operator uint32_t() const
@@ -391,7 +391,7 @@ namespace alpaka::lockstep
 
         T_Foreach const& m_forEach;
 
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE SimdLookupIndex (T_Foreach const& forEach, const std::size_t idx) : m_forEach(forEach), m_idx(idx){}
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr SimdLookupIndex (T_Foreach const& forEach, const std::size_t idx) : m_forEach(forEach), m_idx(idx){}
 
         //allow conversion to flat number, but not implicitly
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE explicit constexpr operator uint32_t() const
