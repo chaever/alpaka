@@ -24,6 +24,12 @@ namespace alpaka::lockstep
             template<typename T_Config>
             class ctxVar{};
             class perBlockArray{};
+            class gatherScatterFunctor{};
+        }
+
+        namespace memoryLayouts{
+            class contigous{};
+            class nonContigous{};
         }
 
         //forward declarations
@@ -45,6 +51,9 @@ namespace alpaka::lockstep
         template<typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar);
 
+        template<typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(std::function<T_Elem(uint32_t const)> func);
+
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem & elem);
 
@@ -53,6 +62,9 @@ namespace alpaka::lockstep
 
         template<typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(lockstep::Variable<T_Elem, T_Config> & ctxVar);
+
+        template<typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(std::function<T_Elem&(uint32_t const)> func);
 
         namespace detail
         {
@@ -82,11 +94,24 @@ namespace alpaka::lockstep
                 static constexpr bool value = true;
             };
 
+            template<typename T_Elem, typename T_TypeToWrite, typename T_memLayout>
+            struct AssignmentDestination;
+
             template<typename T_Elem, typename T_TypeToWrite>
-            struct AssignmentDestination{
+            struct AssignmentDestination<T_Elem, T_TypeToWrite, memoryLayouts::contigous>{
                 T_Elem & dest;
                 static_assert(!std::is_const_v<T_Elem>);
                 constexpr AssignmentDestination(T_Elem & elem):dest(elem)
+                {
+                }
+            };
+
+            template<typename T_Elem, typename T_TypeToWrite>
+            struct AssignmentDestination<T_Elem, T_TypeToWrite, memoryLayouts::nonContigous>{
+                std::function<T_Elem&(uint32_t const)> & storeFunc;
+                uint32_t const offset;
+                static_assert(!std::is_const_v<T_Elem>);
+                constexpr AssignmentDestination(std::function<T_Elem&(uint32_t const)> & func, uint32_t const offset):storeFunc(func), offset(offset)
                 {
                 }
             };
@@ -297,7 +322,7 @@ namespace alpaka::lockstep
         struct Assignment{
             /*Pack op Pack*/
             template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Right>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>> left, T_Right const right){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::contigous> left, T_Right const right){
                 static_assert(!std::is_same_v<bool, T_Left>);
                 auto const castedPack = SimdInterface_t<T_Left, T_Left>::elementWiseCast(right);
 
@@ -306,18 +331,42 @@ namespace alpaka::lockstep
                 //std::cout << "Assignment::eval(SimdPack): after  store" << std::endl;
                 return castedPack;
             }
+            /*Pack op Pack, nonContigous*/
+            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Right>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::nonContigous> left, T_Right const right){
+                static_assert(!std::is_same_v<bool, T_Left>);
+                auto const castedPack = SimdInterface_t<T_Left, T_Left>::elementWiseCast(right);
+
+                for(auto i=0u;i<laneCount_v<T_Left>;++i){
+                    left.storeFunc(left.offset+i) = castedPack[i];
+                }
+
+                return castedPack;
+            }
             /*Scalar op Scalar*/
-            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Right>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, T_Left> left, T_Right const& right){
+            template<typename T_Left, typename T_Right, typename T_memLayout, std::enable_if_t< std::is_arithmetic_v<T_Right>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, T_Left, T_memLayout> left, T_Right const& right){
                 return left.dest = right;
             }
             /*Pack op Scalar*/
             template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Right>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>> left, T_Right const& right){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::contigous> left, T_Right const& right){
                 static_assert(!std::is_same_v<bool, T_Left>);
                 auto const expandedValue = SimdInterface_t<T_Left, T_Left>::broadcast(right);
                 SimdInterface_t<T_Left, T_Left>::storeUnaligned(expandedValue, &left.dest);
                 return expandedValue;
+            }
+            /*Pack op Scalar, nonContigous*/
+            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Right>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::nonContigous> left, T_Right const& right){
+                static_assert(!std::is_same_v<bool, T_Left>);
+                auto const castedValue = static_cast<T_Left>(right);
+
+                for(auto i=0u;i<laneCount_v<T_Left>;++i){
+                    left.storeFunc(left.offset+i) = castedValue;
+                }
+
+                return SimdInterface_t<T_Left, T_Left>::broadcast(right);
             }
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
@@ -459,13 +508,13 @@ namespace alpaka::lockstep
             template<typename T_Foreach, uint32_t T_offset>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const)
             {
-                return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest};
+                return detail::AssignmentDestination<T_Elem, T_Elem, memoryLayouts::contigous>{m_dest};
             }
 
             template<typename T_Foreach>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const)
             {
-                return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest};
+                return detail::AssignmentDestination<T_Elem, T_Elem, memoryLayouts::contigous>{m_dest};
             }
 
             XPR_ASSIGN_OPERATOR
@@ -566,7 +615,7 @@ namespace alpaka::lockstep
                 auto const& worker = idx.m_forEach.getWorker();
                 //std::cout << "WriteLeafXpr<dataLocationTags::perBlockArray>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): accessing index " << T_offset + worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx) << std::endl;
                 //std::cout << "WriteLeafXpr<dataLocationTags::perBlockArray>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): address is: " << reinterpret_cast<uint64_t>(&m_dest[T_offset + worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)]) << std::endl;
-                return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest[T_offset + worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)]};
+                return detail::AssignmentDestination<T_Elem, T_Elem, memoryLayouts::contigous>{m_dest[T_offset + worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)]};
             }
 
             //returns ref to allow assignment
@@ -583,7 +632,7 @@ namespace alpaka::lockstep
                 //auto tmp = m_dest[offset];
                 //printf("WriteLeafXpr<perBlockArray> thread %d in block %d: after  load, value is %d\n", threadIdx.x, blockIdx.x, tmp);
 
-                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>>{m_dest[laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))]};
+                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>, memoryLayouts::contigous>{m_dest[laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))]};
             }
 
             XPR_ASSIGN_OPERATOR
@@ -606,7 +655,7 @@ namespace alpaka::lockstep
             {
                 //std::cout << "WriteLeafXpr<dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): accessing index " << T_offset + static_cast<uint32_t>(idx) << std::endl;
                 //std::cout << "WriteLeafXpr<dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): address is: " << reinterpret_cast<uint64_t>(&m_dest[T_offset + static_cast<uint32_t>(idx)]) << std::endl;
-                return detail::AssignmentDestination<T_Elem, T_Elem>{m_dest[T_offset + static_cast<uint32_t>(idx)]};
+                return detail::AssignmentDestination<T_Elem, T_Elem, memoryLayouts::contigous>{m_dest[T_offset + static_cast<uint32_t>(idx)]};
             }
 
             //returns ref to allow assignment
@@ -622,7 +671,73 @@ namespace alpaka::lockstep
                 //auto tmp = m_dest[offset];
                 //printf("WriteLeafXpr<ctxVar> thread %d in block %d: after  load, value is %d\n", threadIdx.x, blockIdx.x, tmp);
 
-                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>>{m_dest[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)]};
+                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>, memoryLayouts::contigous>{m_dest[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)]};
+            }
+
+            XPR_ASSIGN_OPERATOR
+
+        };
+
+        //cannot be assigned to
+        template<typename T_Elem>
+        class ReadLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor>{
+            using loadFunc_t = std::function<T_Elem(uint32_t const)>;
+            loadFunc_t m_source;
+        public:
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ReadLeafXpr(loadFunc_t source) : m_source(source)
+            {
+            }
+
+            template<typename T_Foreach, uint32_t T_offset>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx) const
+            {
+                //std::cout << "ReadLeafXpr <dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): accessing index " << T_offset + static_cast<uint32_t>(idx) << std::endl;
+                //std::cout << "ReadLeafXpr <dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): value is: " << m_source[T_offset + static_cast<uint32_t>(idx)] << std::endl;
+                return m_source(T_offset + static_cast<uint32_t>(idx));
+            }
+
+            template<typename T_Foreach>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
+            {
+                static_assert(!std::is_same_v<bool, T_Elem>);
+
+                Pack_t<T_Elem, T_Elem> tmp;
+                for(auto i=0u;i<laneCount_v<T_Elem>;++i){
+                    tmp[i] = m_source(i+laneCount_v<T_Elem>*static_cast<uint32_t>(idx));
+                }
+
+                return tmp;
+            }
+        };
+
+        //can be assigned to
+        template<typename T_Elem>
+        class WriteLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor>{
+            using storeFunc_t = std::function<T_Elem&(uint32_t const)>;
+            storeFunc_t m_dest;
+        public:
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(storeFunc_t store) : m_dest(store)
+            {
+            }
+
+            //returns ref to allow assignment
+            template<typename T_Foreach, uint32_t T_offset>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx)
+            {
+                return detail::AssignmentDestination<T_Elem, T_Elem, memoryLayouts::nonContigous>{m_dest, T_offset + static_cast<uint32_t>(idx)};
+            }
+
+            //returns ref to allow assignment
+            template<typename T_Foreach>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx)
+            {
+                static_assert(!std::is_same_v<bool, T_Elem>);
+
+                const auto offset = laneCount_v<T_Elem>*static_cast<uint32_t>(idx);
+
+                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>, memoryLayouts::nonContigous>{m_dest, laneCount_v<T_Elem> * static_cast<uint32_t>(idx)};
             }
 
             XPR_ASSIGN_OPERATOR
@@ -794,6 +909,11 @@ namespace alpaka::lockstep
             return ReadLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
+        template<typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(std::function<T_Elem(uint32_t const)> func){
+            return ReadLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor>(func);
+        }
+
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> >
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem & elem){
             return WriteLeafXpr<T_Elem, dataLocationTags::scalar>(elem);
@@ -807,6 +927,11 @@ namespace alpaka::lockstep
         template<typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(lockstep::Variable<T_Elem, T_Config> & ctxVar){
             return WriteLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
+        }
+
+        template<typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(std::function<T_Elem&(uint32_t const)> func){
+            return WriteLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor>(func);
         }
 
 //clean up
