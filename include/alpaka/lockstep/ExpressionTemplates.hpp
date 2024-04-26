@@ -339,6 +339,7 @@ namespace alpaka::lockstep
 
                 for(auto i=0u;i<laneCount_v<T_Left>;++i){
                     left.storeFunc(left.offset+i) = castedPack[i];
+                    //std::cout << "Assignment::eval<Pack>: idx="<<(left.offset+i)<<std::endl;
                 }
 
                 return castedPack;
@@ -705,6 +706,7 @@ namespace alpaka::lockstep
                 Pack_t<T_Elem, T_Elem> tmp;
                 for(auto i=0u;i<laneCount_v<T_Elem>;++i){
                     tmp[i] = m_source(i+laneCount_v<T_Elem>*static_cast<uint32_t>(idx));
+                    //std::cout << "ReadLeafXpr<gatherScatterFunctor>::operator[SimdLookupIndex]: idx="<<(i+laneCount_v<T_Elem>*static_cast<uint32_t>(idx))<<std::endl;
                 }
 
                 return tmp;
