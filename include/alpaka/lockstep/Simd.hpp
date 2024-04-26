@@ -112,13 +112,10 @@ namespace alpaka::lockstep
     namespace simdBackendTags{
 
         class ScalarSimdTag{};
-        class StdSimdTag{};
         template<uint32_t T_simdMult>
         class StdSimdNTimesTag{};
 
-#if   0 && ALPAKA_USE_STD_SIMD
-        using SelectedSimdBackendTag = simdBackendTags::StdSimdTag;
-#elif 1 && ALPAKA_USE_STD_SIMD
+#if 1 && ALPAKA_USE_STD_SIMD
         using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<1>;
 #else
         //GPU must use scalar simd packs
@@ -176,141 +173,12 @@ namespace alpaka::lockstep
         }
     };
 
-#if ALPAKA_USE_STD_SIMD
-
     template<typename T_SizeIndicator>
     struct GetSizeIndicator<T_SizeIndicator, simdBackendTags::ScalarSimdTag>{
         using type = T_SizeIndicator;
     };
 
-    //Specialization using std::experimental::simd
-    //in case of T_Elem = bool, the size of the packs is decided by T_SizeIndicator
-    template<typename T_Elem, typename T_SizeIndicator>
-    struct SimdInterface<T_Elem, T_SizeIndicator, simdBackendTags::StdSimdTag>{
-        inline static constexpr bool packIsMask = std::is_same_v<T_Elem, bool>;
-
-        //make sure that only bool can have T_Elem != T_SizeIndicator
-        static_assert(packIsMask || std::is_same_v<T_Elem, T_SizeIndicator>);
-        static_assert(!std::is_same_v<bool, T_SizeIndicator>);
-
-        using Elem_t = T_Elem;
-        using abi_t = std::experimental::simd_abi::native<T_SizeIndicator>;
-        using Pack_t = std::conditional_t<packIsMask,
-        std::experimental::simd_mask<T_SizeIndicator, abi_t>,
-        std::experimental::simd<T_Elem, abi_t>>;
-
-        inline static constexpr std::size_t laneCount = Pack_t::size();
-
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto loadUnaligned(T_Elem const * const mem) -> Pack_t
-        {
-            return Pack_t(mem, std::experimental::element_aligned);
-        }
-
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr void storeUnaligned(const Pack_t t, T_Elem * const mem)
-        {
-            t.copy_to(mem, std::experimental::element_aligned);
-        }
-
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto broadcast(T_Elem const& elem) -> Pack_t
-        {
-            return Pack_t(elem);
-        }
-
-        //got pack, own elements are non-bool
-        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) // -> Pack_t
-        {
-            constexpr bool isTrivial=std::is_same_v<T_Source_Elem, T_Elem>;
-            static_assert(isTrivial != (std::is_same_v<T_Source_Elem, uint32_t> && std::is_same_v<T_Elem, float>));
-
-
-            {
-                static_assert(isTrivial != (std::is_same_v<T_Source_Elem, uint32_t> && std::is_same_v<T_Elem, float>));
-
-                using to = float;
-                using from = uint32_t;
-
-
-                using pUint = std::experimental::simd<from, std::experimental::simd_abi::native<from> >;
-                using pFloat = std::experimental::simd<to, std::experimental::simd_abi::native<to> >;
-
-                pUint someUints{6u};
-                pFloat someFloats{5.0f};
-
-                auto tmp = std::experimental::static_simd_cast<to, from, std::experimental::simd_abi::native<to>>(someUints);
-
-                pFloat tmp2 = std::experimental::to_native(tmp);
-
-
-                static_assert(isTrivial || (std::is_same_v<T_Source_Abi, abi_t> && std::is_same_v<abi_t, std::experimental::simd_abi::native<T_Elem>>));
-                static_assert(isTrivial || (std::is_same_v<pUint, std::decay_t<decltype(pack)>>));
-            }
-
-
-
-
-
-
-
-            //auto tmp = std::experimental::static_simd_cast<T_Elem, T_Source_Elem, T_Source_Abi>(pack);
-            auto tmp = std::experimental::static_simd_cast<T_Elem, T_Source_Elem, std::experimental::simd_abi::native<T_Elem>>(pack);
-
-
-
-            static_assert(std::decay_t<decltype(std::experimental::static_simd_cast<T_Elem, T_Source_Elem, T_Source_Abi>(pack))>::size() == std::decay_t<decltype(pack)>::size());
-            static_assert(std::is_same_v<T_Source_Abi, abi_t>);
-            static_assert(isTrivial || (std::is_same_v<typename std::decay_t<decltype(tmp )>::abi_type, std::experimental::simd_abi::_Fixed<4> > ));
-            static_assert(isTrivial || (std::is_same_v<T_Source_Abi, std::experimental::simd_abi::_VecBuiltin<16> > ));
-            static_assert(isTrivial || (std::is_same_v<T_Source_Abi, typename std::decay_t<decltype(pack)>::abi_type>));
-
-            static_assert(isTrivial || (std::is_same_v<std::decay_t<decltype(pack)>, std::experimental::simd<uint32_t, std::experimental::simd_abi::_VecBuiltin<16> > >));
-            static_assert(isTrivial || (std::is_same_v<decltype(tmp ), std::experimental::simd<float, std::experimental::simd_abi::_Fixed<4> > >));
-            //static_assert(isTrivial || (std::is_same_v<Pack_t, alpaka::lockstep::Pack_t<float, float>>));
-
-            //alpaka::lockstep::Pack_t<T_Elem, T_SizeIndicator> tmp2 = std::experimental::to_native(tmp);
-
-
-
-            //return /*std::experimental::to_native(*/std::experimental::static_simd_cast<T_Elem, T_Source_Elem, T_Source_Abi>(pack)/*)*/;
-            //Pack_t tmp2 = std::experimental::to_native(tmp);
-            return tmp;
-        }
-
-        //got mask, own elements are non-bool
-        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount && !packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
-        {
-            static_assert(std::is_arithmetic_v<T_Source_Elem>);
-            Pack_t tmp(0);
-            std::experimental::where(mask, tmp) = Pack_t(1);
-            return tmp;
-        }
-
-        //got pack, own elements are bool
-        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd<T_Source_Elem, T_Source_Abi> const& pack) -> Pack_t
-        {
-            //arithmetic types casted to bool are true if != 0
-            return pack != 0;
-        }
-
-        //got mask, own elements are bool
-        template<typename T_Source_Elem, typename T_Source_Abi, std::enable_if_t<laneCount_v<T_Source_Elem> == laneCount &&  packIsMask, int> = 0>
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto elementWiseCast(std::experimental::simd_mask<T_Source_Elem, T_Source_Abi> const& mask) -> Pack_t
-        {
-            return mask;
-        }
-    };
-
-    template<typename T_SizeIndicator, typename T_Abi>
-    struct GetSizeIndicator<std::experimental::simd_mask<T_SizeIndicator, T_Abi>, simdBackendTags::StdSimdTag>{
-        using type = T_SizeIndicator;
-    };
-
-    template<typename T_SizeIndicator, typename T_Abi>
-    struct GetSizeIndicator<std::experimental::simd<T_SizeIndicator, T_Abi>, simdBackendTags::StdSimdTag>{
-        using type = T_SizeIndicator;
-    };
+#if ALPAKA_USE_STD_SIMD
 
     //std::experimental::simd, but N at a time
     template<typename T_Elem, typename T_SizeIndicator, uint32_t T_simdMult>

@@ -24,13 +24,31 @@ namespace alpaka::lockstep
             template<typename T_Config>
             class ctxVar{};
             class perBlockArray{};
+            template<typename T_Lambda>
             class gatherScatterFunctor{};
         }
 
         namespace memoryLayouts{
             class contigous{};
+            template<typename T_Lambda>
             class nonContigous{};
         }
+
+        //for loading packs from non-contiguous memory
+        template<typename T_Lambda>
+        struct MemAccessorFunctor{
+            T_Lambda const m_lambda;
+            using returned_t = decltype(m_lambda(0u));
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr MemAccessorFunctor(T_Lambda const lambda):m_lambda(lambda){}
+
+            constexpr MemAccessorFunctor(MemAccessorFunctor const&) = default;
+            constexpr MemAccessorFunctor(MemAccessorFunctor &)      = default;
+            constexpr MemAccessorFunctor(MemAccessorFunctor &&)     = default;
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[] (const uint32_t i) const{
+                return m_lambda(i);
+            }
+        };
 
         //forward declarations
         template<typename T_Functor, typename T_Left, typename T_Right>
@@ -51,8 +69,8 @@ namespace alpaka::lockstep
         template<typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(lockstep::Variable<T_Elem, T_Config> const& ctxVar);
 
-        template<typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(std::function<T_Elem(uint32_t const)> func);
+        template<typename T_Lambda>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(MemAccessorFunctor<T_Lambda> func);
 
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> = 0>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(T_Elem & elem);
@@ -63,8 +81,8 @@ namespace alpaka::lockstep
         template<typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(lockstep::Variable<T_Elem, T_Config> & ctxVar);
 
-        template<typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(std::function<T_Elem&(uint32_t const)> func);
+        template<typename T_Lambda>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(MemAccessorFunctor<T_Lambda> func);
 
         namespace trait{
 
@@ -135,12 +153,12 @@ namespace alpaka::lockstep
                 }
             };
 
-            template<typename T_Elem, typename T_TypeToWrite>
-            struct AssignmentDestination<T_Elem, T_TypeToWrite, memoryLayouts::nonContigous>{
-                std::function<T_Elem&(uint32_t const)> & storeFunc;
+            template<typename T_Elem, typename T_TypeToWrite, typename T_Lambda>
+            struct AssignmentDestination<T_Elem, T_TypeToWrite, memoryLayouts::nonContigous<T_Lambda>>{
+                MemAccessorFunctor<T_Lambda> const& storeFunc;
                 uint32_t const offset;
                 static_assert(!std::is_const_v<T_Elem>);
-                constexpr AssignmentDestination(std::function<T_Elem&(uint32_t const)> & func, uint32_t const offset):storeFunc(func), offset(offset)
+                constexpr AssignmentDestination(MemAccessorFunctor<T_Lambda> const& func, uint32_t const offset):storeFunc(func), offset(offset)
                 {
                 }
             };
@@ -364,13 +382,13 @@ namespace alpaka::lockstep
                 return castedPack;
             }
             /*Pack op Pack, nonContigous*/
-            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Right>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::nonContigous> left, T_Right const right){
+            template<typename T_Left, typename T_Right, typename T_Lambda, std::enable_if_t<!std::is_arithmetic_v<T_Right>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::nonContigous<T_Lambda>> left, T_Right const right){
                 static_assert(!std::is_same_v<bool, T_Left>);
                 auto const castedPack = SimdInterface_t<T_Left, T_Left>::elementWiseCast(right);
 
                 for(auto i=0u;i<laneCount_v<T_Left>;++i){
-                    left.storeFunc(left.offset+i) = castedPack[i];
+                    left.storeFunc[left.offset+i] = castedPack[i];
                     //std::cout << "Assignment::eval<Pack>: idx="<<(left.offset+i)<<std::endl;
                 }
 
@@ -390,13 +408,13 @@ namespace alpaka::lockstep
                 return expandedValue;
             }
             /*Pack op Scalar, nonContigous*/
-            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Right>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::nonContigous> left, T_Right const& right){
+            template<typename T_Left, typename T_Right, typename T_Lambda, std::enable_if_t< std::is_arithmetic_v<T_Right>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::nonContigous<T_Lambda>> left, T_Right const& right){
                 static_assert(!std::is_same_v<bool, T_Left>);
                 auto const castedValue = static_cast<T_Left>(right);
 
                 for(auto i=0u;i<laneCount_v<T_Left>;++i){
-                    left.storeFunc(left.offset+i) = castedValue;
+                    left.storeFunc[left.offset+i] = castedValue;
                 }
 
                 return SimdInterface_t<T_Left, T_Left>::broadcast(right);
@@ -712,13 +730,12 @@ namespace alpaka::lockstep
         };
 
         //cannot be assigned to
-        template<typename T_Elem>
-        class ReadLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor>{
-            using loadFunc_t = std::function<T_Elem(uint32_t const)>;
-            loadFunc_t m_source;
+        template<typename T_Elem, typename T_Lambda>
+        class ReadLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor<T_Lambda>>{
+            MemAccessorFunctor<T_Lambda> const m_source;
         public:
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ReadLeafXpr(loadFunc_t source) : m_source(source)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ReadLeafXpr(MemAccessorFunctor<T_Lambda> const source) : m_source(source)
             {
             }
 
@@ -727,7 +744,7 @@ namespace alpaka::lockstep
             {
                 //std::cout << "ReadLeafXpr <dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): accessing index " << T_offset + static_cast<uint32_t>(idx) << std::endl;
                 //std::cout << "ReadLeafXpr <dataLocationTags::ctxVar>(address=" << reinterpret_cast<uint64_t>(this) << ")::operator[](ScalarLookupIndex): value is: " << m_source[T_offset + static_cast<uint32_t>(idx)] << std::endl;
-                return m_source(T_offset + static_cast<uint32_t>(idx));
+                return m_source[T_offset + static_cast<uint32_t>(idx)];
             }
 
             template<typename T_Foreach>
@@ -737,7 +754,7 @@ namespace alpaka::lockstep
 
                 Pack_t<T_Elem, T_Elem> tmp;
                 for(auto i=0u;i<laneCount_v<T_Elem>;++i){
-                    tmp[i] = m_source(i+laneCount_v<T_Elem>*static_cast<uint32_t>(idx));
+                    tmp[i] = m_source[i+laneCount_v<T_Elem>*static_cast<uint32_t>(idx)];
                     //std::cout << "ReadLeafXpr<gatherScatterFunctor>::operator[SimdLookupIndex]: idx="<<(i+laneCount_v<T_Elem>*static_cast<uint32_t>(idx))<<std::endl;
                 }
 
@@ -746,13 +763,12 @@ namespace alpaka::lockstep
         };
 
         //can be assigned to
-        template<typename T_Elem>
-        class WriteLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor>{
-            using storeFunc_t = std::function<T_Elem&(uint32_t const)>;
-            storeFunc_t m_dest;
+        template<typename T_Elem, typename T_Lambda>
+        class WriteLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor<T_Lambda>>{
+            MemAccessorFunctor<T_Lambda> const m_dest;
         public:
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(storeFunc_t store) : m_dest(store)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(MemAccessorFunctor<T_Lambda> const store) : m_dest(store)
             {
             }
 
@@ -760,7 +776,7 @@ namespace alpaka::lockstep
             template<typename T_Foreach, uint32_t T_offset>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](ScalarLookupIndex<T_Foreach, T_offset> const idx)
             {
-                return detail::AssignmentDestination<T_Elem, T_Elem, memoryLayouts::nonContigous>{m_dest, T_offset + static_cast<uint32_t>(idx)};
+                return detail::AssignmentDestination<T_Elem, T_Elem, memoryLayouts::nonContigous<T_Lambda>>{m_dest, T_offset + static_cast<uint32_t>(idx)};
             }
 
             //returns ref to allow assignment
@@ -771,7 +787,7 @@ namespace alpaka::lockstep
 
                 const auto offset = laneCount_v<T_Elem>*static_cast<uint32_t>(idx);
 
-                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>, memoryLayouts::nonContigous>{m_dest, laneCount_v<T_Elem> * static_cast<uint32_t>(idx)};
+                return detail::AssignmentDestination<T_Elem, Pack_t<T_Elem, T_Elem>, memoryLayouts::nonContigous<T_Lambda>>{m_dest, laneCount_v<T_Elem> * static_cast<uint32_t>(idx)};
             }
 
             XPR_ASSIGN_OPERATOR
@@ -943,9 +959,11 @@ namespace alpaka::lockstep
             return ReadLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
-        template<typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(std::function<T_Elem(uint32_t const)> func){
-            return ReadLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor>(func);
+        //load form non-contiguous memory via lambda
+        template<typename T_Lambda>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(MemAccessorFunctor<T_Lambda> func){
+            using Elem_t = decltype(func[0]);
+            return ReadLeafXpr<Elem_t, dataLocationTags::gatherScatterFunctor<T_Lambda>>(func);
         }
 
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<T_Elem>, int> >
@@ -963,9 +981,10 @@ namespace alpaka::lockstep
             return WriteLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
-        template<typename T_Elem>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(std::function<T_Elem&(uint32_t const)> func){
-            return WriteLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor>(func);
+        template<typename T_Lambda>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(MemAccessorFunctor<T_Lambda> func){
+            using Elem_t = decltype(func[0]);
+            return WriteLeafXpr<Elem_t, dataLocationTags::gatherScatterFunctor<T_Lambda>>(func);
         }
 
 //clean up
