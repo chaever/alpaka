@@ -38,7 +38,6 @@ namespace alpaka::lockstep
         template<typename T_Lambda>
         struct MemAccessorFunctor{
             T_Lambda const m_lambda;
-            using returned_t = decltype(m_lambda(0u));
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr MemAccessorFunctor(T_Lambda const lambda):m_lambda(lambda){}
 
             constexpr MemAccessorFunctor(MemAccessorFunctor const&) = default;
@@ -906,11 +905,6 @@ namespace alpaka::lockstep
               //std::cout << "\nevaluateExpression: workerIdx=" << workerIdx << ", threadInGrid=" << idOfThreadInGrid << " : running " << simdLoops << " simdLoops and " << leftoversForAllThreads << " scalar loops. numWorkers=" << numWorkers << ", domainSize=" << domainSize << ", laneCount=" << lanes << std::endl;
             //}
 
-            static_assert(!std::is_const_v<std::remove_reference_t<decltype(std::forward<T_Xpr>(xpr))>>);
-            static_assert(!std::is_const_v<std::remove_reference_t<T_Xpr>>);
-            static_assert(!std::is_const_v<decltype(std::forward<T_Xpr>(xpr))>);
-            static_assert(!std::is_const_v<T_Xpr>);
-
             for(uint32_t i = 0u; i<simdLoops; ++i){
                 //uses the operator[] that returns const Pack_t
                 //std::cout << "evaluateExpression: Worker " << workerIdx << ": beginning SimdLoop No. " << i << std::endl;
@@ -935,8 +929,6 @@ namespace alpaka::lockstep
 
             ContextVar_t tmp;
             decltype(auto) storeXpr = (store(tmp) = std::forward<T_Xpr>(xpr));
-            static_assert(!std::is_const_v<std::remove_reference_t<decltype(storeXpr)>>);
-            static_assert(!std::is_reference_v<decltype(storeXpr)>);
             evaluateExpression<T_Foreach, Elem_t>(forEach, storeXpr);
             return tmp;
         }
