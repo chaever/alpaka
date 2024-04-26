@@ -66,8 +66,8 @@ namespace alpaka::lockstep
         template<typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(std::function<T_Elem&(uint32_t const)> func);
 
-        namespace detail
-        {
+        namespace trait{
+
             //true if T is an expression type, false otherwise.
             template<typename T>
             struct IsXpr{
@@ -94,6 +94,35 @@ namespace alpaka::lockstep
                 static constexpr bool value = true;
             };
 
+            template<typename T_Xpr>
+            struct AllChildrenAreConst;
+
+            template<typename T_Functor, typename T_Left, typename T_Right>
+            struct AllChildrenAreConst<BinaryXpr<T_Functor, T_Left, T_Right>>{
+                static constexpr bool leftIsConst = AllChildrenAreConst<std::decay_t<T_Left>>::value;
+                static constexpr bool rightIsConst = AllChildrenAreConst<std::decay_t<T_Right>>::value;
+                static constexpr bool value = leftIsConst&&rightIsConst;
+            };
+
+            template<typename T_Functor, typename T_Operand>
+            struct AllChildrenAreConst<UnaryXpr<T_Functor, T_Operand>>{
+                static constexpr bool value = AllChildrenAreConst<std::decay_t<T_Operand>>::value;
+            };
+
+            template<typename T_Elem, typename dataLocationTag>
+            struct AllChildrenAreConst<ReadLeafXpr<T_Elem, dataLocationTag> >{
+                static constexpr bool value = true;
+            };
+
+            template<typename T_Elem, typename dataLocationTag>
+            struct AllChildrenAreConst<WriteLeafXpr<T_Elem, dataLocationTag> >{
+                static constexpr bool value = false;
+            };
+        }
+
+        namespace detail
+        {
+
             template<typename T_Elem, typename T_TypeToWrite, typename T_memLayout>
             struct AssignmentDestination;
 
@@ -119,7 +148,10 @@ namespace alpaka::lockstep
         } // namespace detail
 
         template<typename T>
-        static constexpr bool isXpr_v = detail::IsXpr<std::decay_t<T>>::value;
+        static constexpr bool allChildrenAreConst_v = trait::AllChildrenAreConst<std::decay_t<T>>::value;
+
+        template<typename T>
+        static constexpr bool isXpr_v = trait::IsXpr<std::decay_t<T>>::value;
 
 //operations like +,-,*,/ that dont modify their operands, and whose left scalar operands need to be broadcasted
 #define BINARY_READONLY_ARITHMETIC_OP(name, shortFunc)\
@@ -754,10 +786,10 @@ namespace alpaka::lockstep
 
             T_Operand m_operand;
 
-            constexpr static bool allChildrenAreConst = std::is_const_v<T_Operand>;
-            using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const UnaryXpr, UnaryXpr>;
-
         public:
+
+            constexpr static bool allChildrenAreConst = allChildrenAreConst_v<UnaryXpr>;//std::is_const_v<T_Operand>;
+            using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const UnaryXpr, UnaryXpr>;
 
             constexpr UnaryXpr(UnaryXpr const&) = default;
             constexpr UnaryXpr(UnaryXpr &)      = default;
@@ -798,10 +830,10 @@ namespace alpaka::lockstep
             T_Left m_leftOperand;
             T_Right m_rightOperand;
 
-            constexpr static bool allChildrenAreConst = std::is_const_v<T_Left> && std::is_const_v<T_Right>;
-            using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const BinaryXpr, BinaryXpr>;
-
         public:
+
+            constexpr static bool allChildrenAreConst = allChildrenAreConst_v<BinaryXpr>;//std::is_const_v<T_Left> && std::is_const_v<T_Right>;
+            using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const BinaryXpr, BinaryXpr>;
 
             template<typename T_LeftXpr, typename T_RightXpr>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr BinaryXpr(T_LeftXpr&& left, T_RightXpr&& right):m_leftOperand(std::forward<T_LeftXpr>(left)), m_rightOperand(std::forward<T_RightXpr>(right))
