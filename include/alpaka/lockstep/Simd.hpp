@@ -87,12 +87,12 @@ namespace alpaka::lockstep
         }
 
         template<typename T>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T&&) {
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto& operator[](T&&) {
             return packContent;
         }
 
         template<typename T>
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T&&) const {
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto const& operator[](T&&) const {
             return packContent;
         }
 
@@ -218,7 +218,8 @@ namespace alpaka::lockstep
             return PackWrapper(packContent -= PackWrapper(lhs).packContent);
         }
 
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](uint32_t const i) {
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](uint32_t const i){
+
             return packContent[i];
         }
 
