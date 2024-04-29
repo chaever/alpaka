@@ -7,7 +7,7 @@
 
 #define ALPAKA_USE_STD_SIMD 1
 
-#include <StdSimdOperators.hpp>
+#include "StdSimdOperators.hpp"
 
 #endif
 
@@ -31,21 +31,21 @@ namespace alpaka::lockstep
     template<typename T_Elem, typename T_SizeIndicator, typename T_SimdBackend = simdBackendTags::SelectedSimdBackendTag>
     struct PackWrapper;
 
-    namespace trait{
+    inline namespace trait{
 
         template<typename T_Type>
         struct IsPackWrapper{
-            constexpr bool value = false;
+            static constexpr bool value = false;
         };
 
         template<typename T_Elem, typename T_SizeIndicator, typename T_SimdBackend>
         struct IsPackWrapper<PackWrapper<T_Elem, T_SizeIndicator, T_SimdBackend>>{
-            constexpr bool value = true;
+            static constexpr bool value = true;
         };
     }
 
     template<typename T_Type>
-    constexpr bool isPackWrapper_v = IsPackWrapper<T_Type>::value;
+    constexpr bool isPackWrapper_v = trait::IsPackWrapper<T_Type>::value;
 
     //lane count for any type T, using the selected SIMD backend
     template<typename T_SizeIndicator>
@@ -59,25 +59,39 @@ namespace alpaka::lockstep
     struct PackWrapper<T_Elem, T_SizeIndicator, simdBackendTags::ScalarSimdTag>{
         T_Elem packContent;
 
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper() = default;
+
         //broadcast
         ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(T_Elem const& elem):packContent(elem){}
 
         //conversion from other packs
-        template<typename T_SourceElem, typename T_SourceSizeInd>
-        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(PackWrapper<T_SourceElem, T_SourceSizeInd> pack):packContent(static_cast<T_Elem>(pack.packContent)){}
-        template<typename T_SourceElem, typename T_SourceSizeInd>
-        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(PackWrapper<T_SourceElem, T_SourceSizeInd> const& pack):packContent(static_cast<T_Elem>(pack.packContent)){}
-        template<typename T_SourceElem, typename T_SourceSizeInd>
-        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(PackWrapper<T_SourceElem, T_SourceSizeInd> && pack):packContent(static_cast<T_Elem>(pack.packContent)){}
+        template<typename T_PackWrapper, std::enable_if_t<isPackWrapper_v<std::decay_t<T_PackWrapper>>, int> = 0>
+        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(T_PackWrapper pack):packContent(static_cast<T_Elem>(pack.packContent)){}
 
         using Elem_t = T_Elem;
         using SizeIndicator_t = T_SizeIndicator;
 
-        inline constexpr std::size_t laneCount = 1u;
+        static constexpr std::size_t laneCount = 1u;
 
-        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto operator=(PackWrapper const&) = default;
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper& operator=(PackWrapper const&) = default;
 
-        template<T>
+        template<typename T_Lhs>
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper operator+=(T_Lhs const& lhs){
+            //cast to own type and add that
+            return PackWrapper(packContent += PackWrapper(lhs).packContent);
+        }
+
+        template<typename T_Lhs>
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper operator-=(T_Lhs const& lhs){
+            return PackWrapper(packContent -= PackWrapper(lhs).packContent);
+        }
+
+        template<typename T>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T&&) {
+            return packContent;
+        }
+
+        template<typename T>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T&&) const {
             return packContent;
         }
@@ -100,7 +114,7 @@ namespace alpaka::lockstep
 
 #if ALPAKA_USE_STD_SIMD
 
-    namespace trait{
+    inline namespace trait{
 
         template<typename T_From, typename T_To, typename T_BackendTag>
         struct simdPackCast;
@@ -109,7 +123,7 @@ namespace alpaka::lockstep
         template<typename T_SourceElem, typename T_DestElem, uint32_t T_simdMult>
         struct simdPackCast<PackWrapper<T_SourceElem, T_SourceElem>, PackWrapper<T_DestElem, T_DestElem>, simdBackendTags::StdSimdNTimesTag<T_simdMult>>{
             static_assert(laneCount_v<T_SourceElem> == laneCount_v<T_DestElem>);
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr get(PackWrapper<T_SourceElem, T_SourceElem> const& pack){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto get(PackWrapper<T_SourceElem, T_SourceElem> const& pack){
                 using Abi_t = typename PackWrapper<T_DestElem, T_DestElem>::abi_multiplied_t;
                 return PackWrapper<T_DestElem, T_DestElem>{std::experimental::static_simd_cast<T_DestElem, T_SourceElem, Abi_t>(pack.packContent)};
             }
@@ -119,7 +133,7 @@ namespace alpaka::lockstep
         template<typename T_SourceElem, typename T_DestSizeInd, uint32_t T_simdMult>
         struct simdPackCast<PackWrapper<T_SourceElem, T_SourceElem>, PackWrapper<bool, T_DestSizeInd>, simdBackendTags::StdSimdNTimesTag<T_simdMult>>{
             static_assert(laneCount_v<T_SourceElem> == laneCount_v<T_DestSizeInd>);
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr get(PackWrapper<T_SourceElem, T_SourceElem> const& pack){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto get(PackWrapper<T_SourceElem, T_SourceElem> const& pack){
                 return PackWrapper<bool, T_DestSizeInd>{pack.packContent != 0};
             }
         };
@@ -128,7 +142,7 @@ namespace alpaka::lockstep
         template<typename T_SourceSizeInd, typename T_DestElem, uint32_t T_simdMult>
         struct simdPackCast<PackWrapper<bool, T_SourceSizeInd>, PackWrapper<T_DestElem, T_DestElem>, simdBackendTags::StdSimdNTimesTag<T_simdMult>>{
             static_assert(laneCount_v<T_SourceSizeInd> == laneCount_v<T_DestElem>);
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr get(PackWrapper<bool, T_SourceSizeInd> const& mask){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto get(PackWrapper<bool, T_SourceSizeInd> const& mask){
 
                 static_assert(std::is_arithmetic_v<T_DestElem>);
                 using targetPack_t = typename PackWrapper<T_DestElem, T_DestElem>::multiplied_Pack_t;
@@ -142,7 +156,7 @@ namespace alpaka::lockstep
         template<typename T_SourceSizeInd, typename T_DestSizeInd, uint32_t T_simdMult>
         struct simdPackCast<PackWrapper<bool, T_SourceSizeInd>, PackWrapper<bool, T_DestSizeInd>, simdBackendTags::StdSimdNTimesTag<T_simdMult>>{
             static_assert(laneCount_v<T_SourceSizeInd> == laneCount_v<T_DestSizeInd>);
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr get(PackWrapper<bool, T_SourceSizeInd> const& mask){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto get(PackWrapper<bool, T_SourceSizeInd> const& mask){
                 using targetMask_t = typename PackWrapper<bool, T_DestSizeInd>::multiplied_Pack_t;
                 return PackWrapper<bool, T_DestSizeInd>{targetMask_t{mask.packContent}};
             }
@@ -168,26 +182,45 @@ namespace alpaka::lockstep
         ///TODO inherit from multiplied_Pack_t (would also inherit all operators that std::simd packs have)
         multiplied_Pack_t packContent;
 
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper() = default;
+
+        //initialization from underlying pack type
+        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(multiplied_Pack_t const& elem):packContent(elem){}
+
         //broadcast
-        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(multiplied_Pack_t const& elem):packContent(elem){}
+        template<typename T, std::enable_if_t<std::is_arithmetic_v<std::decay_t<T>>, int> = 0>
+        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(T const& elem):packContent(static_cast<T_Elem>(elem)){}
 
         //conversion from other packs
-        template<typename T_SourceElem, typename T_SourceSizeInd>
-        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(PackWrapper<T_SourceElem, T_SourceSizeInd> pack):
-        packContent(trait::simdPackCast<T_SourceElem, T_SourceSizeInd, T_Elem, T_SizeIndicator, simdBackendTags::StdSimdNTimesTag<T_simdMult> >::get(pack).packContent){}
-        template<typename T_SourceElem, typename T_SourceSizeInd>
-        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(PackWrapper<T_SourceElem, T_SourceSizeInd> const& pack):
-        packContent(trait::simdPackCast<T_SourceElem, T_SourceSizeInd, T_Elem, T_SizeIndicator, simdBackendTags::StdSimdNTimesTag<T_simdMult> >::get(pack).packContent){}
-        template<typename T_SourceElem, typename T_SourceSizeInd>
-        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(PackWrapper<T_SourceElem, T_SourceSizeInd> && pack):
-        packContent(trait::simdPackCast<T_SourceElem, T_SourceSizeInd, T_Elem, T_SizeIndicator, simdBackendTags::StdSimdNTimesTag<T_simdMult> >::get(pack).packContent){}
+        template<typename T_PackWrapper, std::enable_if_t<isPackWrapper_v<std::decay_t<T_PackWrapper>>, int> = 0>
+        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(T_PackWrapper pack):
+        packContent(trait::simdPackCast<std::decay_t<T_PackWrapper>, PackWrapper, simdBackendTags::StdSimdNTimesTag<T_simdMult> >::get(pack).packContent){
+
+            static_assert(!std::is_same_v<int, std::decay_t<decltype(trait::simdPackCast<std::decay_t<T_PackWrapper>, PackWrapper, simdBackendTags::StdSimdNTimesTag<T_simdMult> >::get(pack))>>);
+
+        }
 
         using Elem_t = T_Elem;
         using SizeIndicator_t = T_SizeIndicator;
 
-        inline constexpr std::size_t laneCount = multiplied_Pack_t::size();
+        static constexpr std::size_t laneCount = multiplied_Pack_t::size();
 
-        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto operator=(PackWrapper const&) = default;
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper& operator=(PackWrapper const&) = default;
+
+        template<typename T_Lhs>
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper operator+=(T_Lhs const& lhs){
+            //cast to own type and add that
+            return PackWrapper(packContent += PackWrapper(lhs).packContent);
+        }
+
+        template<typename T_Lhs>
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper operator-=(T_Lhs const& lhs){
+            return PackWrapper(packContent -= PackWrapper(lhs).packContent);
+        }
+
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](uint32_t const i) {
+            return packContent[i];
+        }
 
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](uint32_t const i) const {
             return packContent[i];
@@ -208,62 +241,119 @@ namespace alpaka::lockstep
 
 #define XPR_OP_WRAPPER() operator
 
-#define BINARY_READONLY_ARITHMETIC_OP(opName, typeExpansionOP)\
+#define BINARY_READONLY_ARITHMETIC_OP(opName)\
     /*Pack op Pack*/\
     template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (PackWrapper<T_LeftElem, T_LeftSizeInd> const& left, PackWrapper<T_RightElem, T_RightSizeInd> const& right){\
-        using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() typeExpansionOP std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
-        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
-        return PackWrapper<result_elem_t, result_sizeInd_t>(left).packContent opName PackWrapper<result_elem_t, result_sizeInd_t>(right).packContent;\
+        using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = PackWrapper<result_elem_t, result_sizeInd_t>;\
+        return resultPack_t(resultPack_t(left).packContent opName resultPack_t(right).packContent);\
     }\
     /*Pack op nonPack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightNonPack, typename std::enable_if_t<!isPackWrapper_v<T_RightNonPack>, int> = 0>\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightNonPack, std::enable_if_t<!isPackWrapper_v<T_RightNonPack>, int> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (PackWrapper<T_LeftElem, T_LeftSizeInd> const& left, T_RightNonPack const& right){\
-        using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() typeExpansionOP std::declval<std::decay_t<decltype(right)>>());\
-        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
-        return PackWrapper<result_elem_t, result_sizeInd_t>(left).packContent opName PackWrapper<result_elem_t, result_sizeInd_t>(right).packContent;\
+        using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<std::decay_t<decltype(right)>>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = PackWrapper<result_elem_t, result_sizeInd_t>;\
+        return resultPack_t(resultPack_t(left).packContent opName resultPack_t(right).packContent);\
     }\
     /*nonPack op Pack*/\
-    template<typename T_LeftNonPack, typename T_RightElem, typename T_RightSizeInd, typename std::enable_if_t<!isPackWrapper_v<T_LeftNonPack>, int> = 0>\
+    template<typename T_LeftNonPack, typename T_RightElem, typename T_RightSizeInd, std::enable_if_t<!isPackWrapper_v<T_LeftNonPack>, int> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (T_LeftNonPack const& left, PackWrapper<T_RightElem, T_RightSizeInd> const& right){\
-        using result_elem_t = decltype(std::declval<std::decay_t<decltype(left)>>() typeExpansionOP std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
-        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(right)>::SizeIndicator_t, result_elem_t>;\
-        return PackWrapper<result_elem_t, result_sizeInd_t>(left).packContent opName PackWrapper<result_elem_t, result_sizeInd_t>(right).packContent;\
+        using result_elem_t = decltype(std::declval<std::decay_t<decltype(left)>>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(right)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = PackWrapper<result_elem_t, result_sizeInd_t>;\
+        return resultPack_t(resultPack_t(left).packContent opName resultPack_t(right).packContent);\
     }
 
+#define BINARY_READONLY_COMPARISON_OP(opName)\
+    /*Pack op Pack*/\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (PackWrapper<T_LeftElem, T_LeftSizeInd> const& left, PackWrapper<T_RightElem, T_RightSizeInd> const& right){\
+        using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using compare_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() + std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = PackWrapper<result_elem_t, result_sizeInd_t>;\
+        using comparePack_t = PackWrapper<compare_elem_t, result_sizeInd_t>;\
+        return resultPack_t(comparePack_t(left).packContent opName comparePack_t(right).packContent);\
+    }\
+    /*Pack op nonPack*/\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightNonPack, std::enable_if_t<!isPackWrapper_v<T_RightNonPack>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (PackWrapper<T_LeftElem, T_LeftSizeInd> const& left, T_RightNonPack const& right){\
+        using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<std::decay_t<decltype(right)>>());\
+        using compare_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() + std::declval<std::decay_t<decltype(right)>>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = PackWrapper<result_elem_t, result_sizeInd_t>;\
+        using comparePack_t = PackWrapper<compare_elem_t, result_sizeInd_t>;\
+        return resultPack_t(comparePack_t(left).packContent opName comparePack_t(right).packContent);\
+    }\
+    /*nonPack op Pack*/\
+    template<typename T_LeftNonPack, typename T_RightElem, typename T_RightSizeInd, std::enable_if_t<!isPackWrapper_v<T_LeftNonPack>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (T_LeftNonPack const& left, PackWrapper<T_RightElem, T_RightSizeInd> const& right){\
+        using result_elem_t = decltype(std::declval<std::decay_t<decltype(left)>>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using compare_elem_t = decltype(std::declval<std::decay_t<decltype(left)>>() + std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(right)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = PackWrapper<result_elem_t, result_sizeInd_t>;\
+        using comparePack_t = PackWrapper<compare_elem_t, result_sizeInd_t>;\
+        return resultPack_t(comparePack_t(left).packContent opName comparePack_t(right).packContent);\
+    }
 
 #define BINARY_READONLY_SHIFT_OP(opName)\
     /*Pack op Pack*/\
     template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (PackWrapper<T_LeftElem, T_LeftSizeInd> const& left, PackWrapper<T_RightElem, T_RightSizeInd> const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
-        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
-        return PackWrapper<result_elem_t, result_sizeInd_t>(left).packContent opName PackWrapper<result_elem_t, result_sizeInd_t>(right).packContent;\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = PackWrapper<result_elem_t, result_sizeInd_t>;\
+        return resultPack_t(resultPack_t(left).packContent opName resultPack_t(right).packContent);\
     }\
     /*Pack op nonPack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightNonPack, typename std::enable_if_t<!isPackWrapper_v<T_RightNonPack>, int> = 0>\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightNonPack, std::enable_if_t<!isPackWrapper_v<T_RightNonPack>, int> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (PackWrapper<T_LeftElem, T_LeftSizeInd> const& left, T_RightNonPack const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<std::decay_t<decltype(right)>>());\
-        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
-        return PackWrapper<result_elem_t, result_sizeInd_t>(left).packContent opName right;\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = PackWrapper<result_elem_t, result_sizeInd_t>;\
+        return resultPack_t(resultPack_t(left).packContent opName right);\
+    }
+
+#define UNARY_READONLY_OP_PREFIX(opName)\
+    template<typename T_Elem, typename T_SizeInd>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) XPR_OP_WRAPPER()opName(PackWrapper<T_Elem, T_SizeInd> const& pack)\
+    {\
+        return PackWrapper<T_Elem, T_SizeInd>{opName pack.packContent};\
+    }
+
+#define UNARY_READONLY_OP_POSTFIX(opName)\
+    template<typename T_Elem, typename T_SizeInd>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) XPR_OP_WRAPPER()opName(PackWrapper<T_Elem, T_SizeInd> const& pack, [[unused]] int /*neededForPrefixAndPostfixDistinction*/)\
+    {\
+        return PackWrapper<T_Elem, T_SizeInd>{pack.packContent opName};\
     }
 
 #define UNARY_FREE_FUNCTION(fName)\
-    template<typename T_LeftElem, typename T_LeftSizeInd>\
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto internalFunc(PackWrapper<T_LeftElem, T_LeftSizeInd> const& left){\
-        return PackWrapper<T_LeftElem, T_LeftSizeInd>(fName(left.packContent));\
+    template<typename T_Elem, typename T_SizeInd>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto fName(alpaka::lockstep::PackWrapper<T_Elem, T_SizeInd> const& pack){\
+        return alpaka::lockstep::PackWrapper<T_Elem, T_SizeInd>(fName(pack.packContent));\
     }
 
-    BINARY_READONLY_ARITHMETIC_OP(+, +)
-    BINARY_READONLY_ARITHMETIC_OP(-, -)
-    BINARY_READONLY_ARITHMETIC_OP(*, *)
-    BINARY_READONLY_ARITHMETIC_OP(/, /)
-    BINARY_READONLY_ARITHMETIC_OP(&, &)
-    BINARY_READONLY_ARITHMETIC_OP(&&, &&)
-    BINARY_READONLY_ARITHMETIC_OP(|, |)
-    BINARY_READONLY_ARITHMETIC_OP(||, ||)
-    BINARY_READONLY_ARITHMETIC_OP(>, +)
-    BINARY_READONLY_ARITHMETIC_OP(<, +)
+    BINARY_READONLY_ARITHMETIC_OP(+)
+    BINARY_READONLY_ARITHMETIC_OP(-)
+    BINARY_READONLY_ARITHMETIC_OP(*)
+    BINARY_READONLY_ARITHMETIC_OP(/)
+    BINARY_READONLY_ARITHMETIC_OP(&)
+    BINARY_READONLY_ARITHMETIC_OP(&&)
+    BINARY_READONLY_ARITHMETIC_OP(|)
+    BINARY_READONLY_ARITHMETIC_OP(||)
+
+    BINARY_READONLY_COMPARISON_OP(>)
+    BINARY_READONLY_COMPARISON_OP(<)
+
+    UNARY_READONLY_OP_PREFIX(!)
+    UNARY_READONLY_OP_PREFIX(~)
+
+    UNARY_READONLY_OP_POSTFIX(++)
+    UNARY_READONLY_OP_POSTFIX(--)
 
     BINARY_READONLY_SHIFT_OP(>>)
     BINARY_READONLY_SHIFT_OP(<<)
@@ -276,7 +366,10 @@ namespace alpaka::lockstep
 {
 
 #undef UNARY_FREE_FUNCTION
+#undef UNARY_READONLY_OP_POSTFIX
+#undef UNARY_READONLY_OP_PREFIX
 #undef BINARY_READONLY_SHIFT_OP
+#undef BINARY_READONLY_COMPARISON_OP
 #undef BINARY_READONLY_ARITHMETIC_OP
 #undef XPR_OP_WRAPPER
 
