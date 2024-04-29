@@ -75,6 +75,8 @@ namespace alpaka::lockstep
 
         inline constexpr std::size_t laneCount = 1u;
 
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto operator=(PackWrapper const&) = default;
+
         template<T>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T&&) const {
             return packContent;
@@ -184,6 +186,8 @@ namespace alpaka::lockstep
         using SizeIndicator_t = T_SizeIndicator;
 
         inline constexpr std::size_t laneCount = multiplied_Pack_t::size();
+
+        ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto operator=(PackWrapper const&) = default;
 
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](uint32_t const i) const {
             return packContent[i];
