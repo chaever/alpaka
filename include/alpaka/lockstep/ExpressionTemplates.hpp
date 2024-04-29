@@ -170,131 +170,11 @@ namespace alpaka::lockstep
         template<typename T>
         static constexpr bool isXpr_v = trait::IsXpr<std::decay_t<T>>::value;
 
-//operations like +,-,*,/ that dont modify their operands, and whose left scalar operands need to be broadcasted
-#define BINARY_READONLY_ARITHMETIC_OP(name, shortFunc)\
+#define BINARY_READONLY_OP(name, shortFunc)\
         struct name{\
-            /*for Scalar op Scalar*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
+            template<typename T_Left, typename T_Right>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
                 return left shortFunc right;\
-            }\
-            /*for Pack op Pack*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                using result_elem_t = decltype(left[0] shortFunc right[0]);\
-                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, decltype(left)::SizeIndicator_t, result_elem_t>;\
-                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
-            }\
-            /*for Scalar op Pack*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                using result_elem_t = decltype(left    shortFunc right[0]);\
-                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, decltype(right)::SizeIndicator_t, result_elem_t>;\
-                return SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
-            }\
-            /*for Pack op Scalar*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                static_assert(std::is_arithmetic_v<std::decay_t<decltype(std::declval<const T_Left>()[0])>>);\
-                using result_elem_t = decltype(left[0] shortFunc right   );\
-                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, decltype(left)::SizeIndicator_t, result_elem_t>;\
-                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(right);\
-            }\
-            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){\
-                return load(std::forward<T_Other>(other));\
-            }\
-            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){\
-                return std::forward<T_Other>(other);\
-            }\
-            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){\
-                return load(std::forward<T_Other>(other));\
-            }\
-            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){\
-                return std::forward<T_Other>(other);\
-            }\
-        };
-
-#define BINARY_READONLY_COMPARISON_OP(name, shortFunc)\
-        struct name{\
-            /*for Scalar op Scalar*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                return left shortFunc right;\
-            }\
-            /*for Pack op Pack*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                /*char + long int becomes long int*/\
-                using result_elem_t = decltype(left[0] + right[0]);\
-                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
-                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
-            }\
-            /*for Scalar op Pack*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                using result_elem_t = decltype(left + right[0]);\
-                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(right)>::SizeIndicator_t, result_elem_t>;\
-                return SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
-            }\
-            /*for Pack op Scalar*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                static_assert(std::is_arithmetic_v<decltype(std::declval<const T_Left>()[0])>);\
-                using result_elem_t = decltype(left[0] + right   );\
-                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
-                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(right);\
-            }\
-            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){\
-                return load(std::forward<T_Other>(other));\
-            }\
-            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){\
-                return std::forward<T_Other>(other);\
-            }\
-            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){\
-                return load(std::forward<T_Other>(other));\
-            }\
-            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){\
-                return std::forward<T_Other>(other);\
-            }\
-        };
-
-#define BINARY_READONLY_SHIFT_OP(name, shortFunc)\
-        struct name{\
-            /*for Scalar op Scalar*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                return left shortFunc right;\
-            }\
-            /*for Pack op Pack*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                using result_elem_t = decltype(left[0] shortFunc right[0]);\
-                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
-                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
-            }\
-            /*for Scalar op Pack*/\
-            template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Left> && !std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                using result_elem_t = decltype(left    shortFunc right[0]);\
-                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(right)>::SizeIndicator_t, result_elem_t>;\
-                return SimdInterface_t<result_elem_t, sizeIndicator_t>::broadcast(left) shortFunc SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(right);\
-            }\
-            /*for Pack op Scalar
-             * NOTE: shifts can be called with a single element (Pack_t<<4 is viable), therefore no broadcast happens below
-             */\
-            template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Left> &&  std::is_arithmetic_v<T_Right>, int> = 0 >\
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left const& left, T_Right const& right){\
-                using result_elem_t = decltype(left[0] shortFunc right   );\
-                using sizeIndicator_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
-                return SimdInterface_t<result_elem_t, sizeIndicator_t>::elementWiseCast(left) shortFunc right;\
             }\
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){\
@@ -338,20 +218,18 @@ namespace alpaka::lockstep
             }\
         };
 
-        BINARY_READONLY_ARITHMETIC_OP(Addition, +)
-        BINARY_READONLY_ARITHMETIC_OP(Subtraction, -)
-        BINARY_READONLY_ARITHMETIC_OP(Multiplication, *)
-        BINARY_READONLY_ARITHMETIC_OP(Division, /)
-        BINARY_READONLY_ARITHMETIC_OP(BitwiseAnd, &)
-        BINARY_READONLY_ARITHMETIC_OP(BitwiseOr, |)
-        BINARY_READONLY_ARITHMETIC_OP(And, &&)
-        BINARY_READONLY_ARITHMETIC_OP(Or, ||)
-
-        BINARY_READONLY_COMPARISON_OP(LessThen, <)
-        BINARY_READONLY_COMPARISON_OP(GreaterThen, >)
-
-        BINARY_READONLY_SHIFT_OP(ShiftRight, >>)
-        BINARY_READONLY_SHIFT_OP(ShiftLeft, <<)
+        BINARY_READONLY_OP(Addition, +)
+        BINARY_READONLY_OP(Subtraction, -)
+        BINARY_READONLY_OP(Multiplication, *)
+        BINARY_READONLY_OP(Division, /)
+        BINARY_READONLY_OP(BitwiseAnd, &)
+        BINARY_READONLY_OP(BitwiseOr, |)
+        BINARY_READONLY_OP(And, &&)
+        BINARY_READONLY_OP(Or, ||)
+        BINARY_READONLY_OP(LessThen, <)
+        BINARY_READONLY_OP(GreaterThen, >)
+        BINARY_READONLY_OP(ShiftRight, >>)
+        BINARY_READONLY_OP(ShiftLeft, <<)
 
         UNARY_READONLY_OP_PREFIX(BitwiseInvert, ~)
         UNARY_READONLY_OP_PREFIX(Negation, !)
@@ -362,8 +240,7 @@ namespace alpaka::lockstep
         UNARY_FREE_FUNCTION(Absolute, std::abs)
 
 //clean up
-#undef BINARY_READONLY_ARITHMETIC_OP
-#undef BINARY_READONLY_SHIFT_OP
+#undef BINARY_READONLY_OP
 #undef UNARY_READONLY_OP_PREFIX
 #undef UNARY_READONLY_OP_POSTFIX
 #undef UNARY_FREE_FUNCTION
@@ -373,10 +250,10 @@ namespace alpaka::lockstep
             template<typename T_Left, typename T_Right, std::enable_if_t<!std::is_arithmetic_v<T_Right>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::contigous> left, T_Right const right){
                 static_assert(!std::is_same_v<bool, T_Left>);
-                auto const castedPack = SimdInterface_t<T_Left, T_Left>::elementWiseCast(right);
+                auto const castedPack = Pack_t<T_Left, T_Left>(right);
 
                 //std::cout << "Assignment::eval(SimdPack): before store to address " << reinterpret_cast<uint64_t>(&left.dest) << std::endl;
-                SimdInterface_t<T_Left, T_Left>::storeUnaligned(castedPack, &left.dest);
+                Pack_t<T_Left, T_Left>::storeUnaligned(castedPack, &left.dest);
                 //std::cout << "Assignment::eval(SimdPack): after  store" << std::endl;
                 return castedPack;
             }
@@ -384,7 +261,7 @@ namespace alpaka::lockstep
             template<typename T_Left, typename T_Right, typename T_Lambda, std::enable_if_t<!std::is_arithmetic_v<T_Right>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::nonContigous<T_Lambda>> left, T_Right const right){
                 static_assert(!std::is_same_v<bool, T_Left>);
-                auto const castedPack = SimdInterface_t<T_Left, T_Left>::elementWiseCast(right);
+                auto const castedPack = Pack_t<T_Left, T_Left>(right);
 
                 for(auto i=0u;i<laneCount_v<T_Left>;++i){
                     left.storeFunc[left.offset+i] = castedPack[i];
@@ -402,8 +279,8 @@ namespace alpaka::lockstep
             template<typename T_Left, typename T_Right, std::enable_if_t< std::is_arithmetic_v<T_Right>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::contigous> left, T_Right const& right){
                 static_assert(!std::is_same_v<bool, T_Left>);
-                auto const expandedValue = SimdInterface_t<T_Left, T_Left>::broadcast(right);
-                SimdInterface_t<T_Left, T_Left>::storeUnaligned(expandedValue, &left.dest);
+                auto const expandedValue = Pack_t<T_Left, T_Left>(right);
+                Pack_t<T_Left, T_Left>::storeUnaligned(expandedValue, &left.dest);
                 return expandedValue;
             }
             /*Pack op Scalar, nonContigous*/
@@ -411,12 +288,10 @@ namespace alpaka::lockstep
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, Pack_t<T_Left, T_Left>, memoryLayouts::nonContigous<T_Lambda>> left, T_Right const& right){
                 static_assert(!std::is_same_v<bool, T_Left>);
                 auto const castedValue = static_cast<T_Left>(right);
-
                 for(auto i=0u;i<laneCount_v<T_Left>;++i){
                     left.storeFunc[left.offset+i] = castedValue;
                 }
-
-                return SimdInterface_t<T_Left, T_Left>::broadcast(right);
+                return Pack_t<T_Left, T_Left>::broadcast(right);
             }
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
@@ -605,7 +480,7 @@ namespace alpaka::lockstep
                 //auto tmp = SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(m_source + laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)));
                 //printf("ReadLeafXpr<perBlockArray> thread %d in block %d: after  load, value is %d\n", threadIdx.x, blockIdx.x, tmp);
 
-                return SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(m_source + laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)));
+                return Pack_t<T_Elem, T_Elem>::loadUnaligned(m_source + laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)));
             }
         };
 
@@ -643,7 +518,7 @@ namespace alpaka::lockstep
                 //auto tmp = SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(&(m_source[offset]));
                 //printf("ReadLeafXpr<ctxVar> thread %d in block %d: after  load, value is %d\n", threadIdx.x, blockIdx.x, tmp);
 
-                return SimdInterface_t<T_Elem, T_Elem>::loadUnaligned(&(m_source[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)]));
+                return Pack_t<T_Elem, T_Elem>::loadUnaligned(&(m_source[laneCount_v<T_Elem>*static_cast<uint32_t>(idx)]));
             }
         };
 

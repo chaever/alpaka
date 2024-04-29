@@ -90,11 +90,6 @@ namespace alpaka::lockstep
             *mem = t.packContent;
         }
 
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto& broadcast(PackWrapper const & elem)
-        {
-            return elem;
-        }
-
         //implicit conversion to the wrapped type
         ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr operator T_Elem() const {
             return packContent;
@@ -202,11 +197,6 @@ namespace alpaka::lockstep
         static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr void storeUnaligned(const PackWrapper t, T_Elem * const mem)
         {
             t.packContent.copy_to(mem, std::experimental::element_aligned);
-        }
-
-        static ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr auto broadcast(T_Elem const & elem)
-        {
-            return PackWrapper{multiplied_Pack_t{elem}};
         }
     };
 
