@@ -282,6 +282,14 @@ namespace alpaka::lockstep
                 }
                 return Pack_t<T_Left, T_Left>::broadcast(right);
             }
+
+            ///TODO missing:
+            //Pack op OneElemPack
+            //scalar op OneElemPack
+
+
+
+
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
                 return expr::load(std::forward<T_Other>(other));
@@ -558,6 +566,9 @@ namespace alpaka::lockstep
         template<typename T_Elem, typename T_Config>
         class WriteLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>{
             lockstep::Variable<T_Elem, T_Config> & m_dest;
+
+            static_assert(!std::is_const_v<T_Elem>);
+
         public:
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(lockstep::Variable<T_Elem, T_Config> & dest) : m_dest(dest)
@@ -730,20 +741,32 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i)
             {
-                static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i])>>);
-                static_assert(isPackWrapper_v<std::decay_t<decltype(m_rightOperand[i])>>);
-                static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i] < m_rightOperand[i])>>);
-                static_assert(isPackWrapper_v<std::decay_t<decltype(T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]))>>);
+
+                constexpr bool isAssignment = std::is_same_v<std::decay_t<T_Functor>, Assignment>;
+                constexpr bool isBitwiseOr = std::is_same_v<std::decay_t<T_Functor>, BitwiseOr>;
+                constexpr bool isSimdLookupIdx = std::is_same_v<SimdLookupIndex<std::decay_t<decltype(i.m_forEach)>>, std::decay_t<T_Idx>>;
+                //static_assert(!(sizeof(decltype(m_rightOperand[i])) >= 16 && !isSimdLookupIdx));
+                static_assert(!(!isAssignment // if node doesnt assign
+                            && !isSimdLookupIdx // and there is a ScalarLookupIndex
+                            && sizeof(decltype(m_rightOperand[i]))>=16));// then at most 8 bytes are allowed
+
+                //static_assert(!(isBitwiseOr && !isSimdLookupIdx && decltype(BitwiseOr::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]))::laneCount > 1));
+
+
+                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i])>>);
+                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_rightOperand[i])>>);
+                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i] < m_rightOperand[i])>>);
+                //static_assert(isPackWrapper_v<std::decay_t<decltype(T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]))>>);
                 return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
             }
 
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
-                static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i])>>);
-                static_assert(isPackWrapper_v<std::decay_t<decltype(m_rightOperand[i])>>);
-                static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i] < m_rightOperand[i])>>);
-                static_assert(isPackWrapper_v<std::decay_t<decltype(T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]))>>);
+                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i])>>);
+                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_rightOperand[i])>>);
+                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i] < m_rightOperand[i])>>);
+                //static_assert(isPackWrapper_v<std::decay_t<decltype(T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]))>>);
                 return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
             }
 
@@ -792,7 +815,8 @@ namespace alpaka::lockstep
 
         template<typename T_Foreach, typename T_Xpr>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto evalToCtxVar(T_Foreach const& forEach, T_Xpr&& xpr){
-            using Elem_t = typename std::decay_t<decltype(std::forward<T_Xpr>(xpr)[std::declval<ScalarLookupIndex<T_Foreach, 0u>>()])>::Elem_t;
+            //Xpr -> take 1st entry -> get type -> get Elem_t -> remove const
+            using Elem_t = std::decay_t<typename std::decay_t<decltype(std::forward<T_Xpr>(xpr)[std::declval<ScalarLookupIndex<T_Foreach, 0u>>()])>::Elem_t>;
             using ContextVar_t = Variable<Elem_t, typename std::decay_t<decltype(forEach)>::BaseConfig>;
 
             ContextVar_t tmp;
@@ -838,6 +862,7 @@ namespace alpaka::lockstep
 
         template<typename T_Config, typename T_Elem>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(lockstep::Variable<T_Elem, T_Config> & ctxVar){
+            static_assert(!std::is_const_v<T_Elem>);
             return WriteLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>(ctxVar);
         }
 
