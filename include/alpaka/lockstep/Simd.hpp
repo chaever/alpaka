@@ -54,6 +54,21 @@ namespace alpaka::lockstep
     template<typename T_Type, typename T_SizeIndicator>
     using Pack_t = PackWrapper<T_Type, T_SizeIndicator>;
 
+    //for loading packs from non-contiguous memory
+    template<typename T_Lambda>
+    struct MemAccessorFunctor{
+        T_Lambda const m_lambda;
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr MemAccessorFunctor(T_Lambda const lambda):m_lambda(lambda){}
+
+        constexpr MemAccessorFunctor(MemAccessorFunctor const&) = default;
+        constexpr MemAccessorFunctor(MemAccessorFunctor &)      = default;
+        constexpr MemAccessorFunctor(MemAccessorFunctor &&)     = default;
+
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[] (const uint32_t i) const{
+            return m_lambda(i);
+        }
+    };
+
     //General-case SIMD interface, corresponds to a simdWidth of 1
     template<typename T_Elem, typename T_SizeIndicator>
     struct PackWrapper<T_Elem, T_SizeIndicator, simdBackendTags::ScalarSimdTag>{
@@ -67,6 +82,9 @@ namespace alpaka::lockstep
         //conversion from other packs
         template<typename T_PackWrapper, std::enable_if_t<isPackWrapper_v<std::decay_t<T_PackWrapper>>, int> = 0>
         explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(T_PackWrapper pack):packContent(static_cast<T_Elem>(pack.packContent)){}
+
+        template<typename T_Lambda>
+        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(MemAccessorFunctor<T_Lambda> const loader):packContent(loader[0u]){}
 
         using Elem_t = T_Elem;
         using SizeIndicator_t = T_SizeIndicator;
@@ -194,11 +212,10 @@ namespace alpaka::lockstep
         //conversion from other packs
         template<typename T_PackWrapper, std::enable_if_t<isPackWrapper_v<std::decay_t<T_PackWrapper>>, int> = 0>
         explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(T_PackWrapper pack):
-        packContent(trait::simdPackCast<std::decay_t<T_PackWrapper>, PackWrapper, simdBackendTags::StdSimdNTimesTag<T_simdMult> >::get(pack).packContent){
+        packContent(trait::simdPackCast<std::decay_t<T_PackWrapper>, PackWrapper, simdBackendTags::StdSimdNTimesTag<T_simdMult> >::get(pack).packContent){}
 
-            static_assert(!std::is_same_v<int, std::decay_t<decltype(trait::simdPackCast<std::decay_t<T_PackWrapper>, PackWrapper, simdBackendTags::StdSimdNTimesTag<T_simdMult> >::get(pack))>>);
-
-        }
+        template<typename T_Lambda>
+        explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(MemAccessorFunctor<T_Lambda> const loader):packContent(loader.m_lambda){}
 
         using Elem_t = T_Elem;
         using SizeIndicator_t = T_SizeIndicator;

@@ -19,6 +19,9 @@ namespace alpaka::lockstep
 
     namespace expr
     {
+        template<typename T_Lambda>
+        using MemAccessorFunctor = alpaka::lockstep::MemAccessorFunctor<T_Lambda>;
+
         namespace dataLocationTags{
             class scalar{};
             template<typename T_Config>
@@ -33,21 +36,6 @@ namespace alpaka::lockstep
             template<typename T_Lambda>
             class nonContigous{};
         }
-
-        //for loading packs from non-contiguous memory
-        template<typename T_Lambda>
-        struct MemAccessorFunctor{
-            T_Lambda const m_lambda;
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr MemAccessorFunctor(T_Lambda const lambda):m_lambda(lambda){}
-
-            constexpr MemAccessorFunctor(MemAccessorFunctor const&) = default;
-            constexpr MemAccessorFunctor(MemAccessorFunctor &)      = default;
-            constexpr MemAccessorFunctor(MemAccessorFunctor &&)     = default;
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[] (const uint32_t i) const{
-                return m_lambda(i);
-            }
-        };
 
         //forward declarations
         template<typename T_Functor, typename T_Left, typename T_Right>
@@ -625,14 +613,7 @@ namespace alpaka::lockstep
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](SimdLookupIndex<T_Foreach> const idx) const
             {
                 static_assert(!std::is_same_v<bool, T_Elem>);
-
-                Pack_t<T_Elem, T_Elem> tmp;
-                for(auto i=0u;i<laneCount_v<T_Elem>;++i){
-                    tmp[i] = m_source[i+laneCount_v<T_Elem>*static_cast<uint32_t>(idx)];
-                    //std::cout << "ReadLeafXpr<gatherScatterFunctor>::operator[SimdLookupIndex]: idx="<<(i+laneCount_v<T_Elem>*static_cast<uint32_t>(idx))<<std::endl;
-                }
-
-                return tmp;
+                return Pack_t<T_Elem, T_Elem>(MemAccessorFunctor([&idx, this](auto const i)constexpr{return m_source[i+laneCount_v<T_Elem>*static_cast<uint32_t>(idx)];}));
             }
         };
 
