@@ -57,6 +57,10 @@ namespace alpaka::lockstep
     template<typename T_Type, typename T_SizeIndicator>
     using OneElemPack_t = PackWrapper<T_Type, T_SizeIndicator, simdBackendTags::ScalarSimdTag>;
 
+    //3rd template parameter is needed for different types because of https://stackoverflow.com/questions/65870517/understanding-when-a-default-template-parameter-is-a-redefinition-and-when-not-i
+    template<typename T_Elem, typename T_SizeIndicator, typename T_ResultIfEnabled>
+    using disable_if_PackAndOneElemPackAreEqual = std::enable_if_t<!std::is_same_v<OneElemPack_t<T_Elem, T_SizeIndicator>, Pack_t<T_Elem, T_SizeIndicator> >, T_ResultIfEnabled>;
+
     //for loading packs from non-contiguous memory
     template<typename T_Lambda>
     struct MemAccessorFunctor{
@@ -219,7 +223,7 @@ namespace alpaka::lockstep
         explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(T const& elem):packContent(static_cast<T_Elem>(elem)){}
 
         //broadcast
-        template<typename T_Elem_, typename T_SizeIndicator_>
+        template<typename T_Elem_, typename T_SizeIndicator_, std::enable_if_t<!std::is_same_v<OneElemPack_t<T_Elem_, T_SizeIndicator_>, Pack_t<T_Elem_, T_SizeIndicator_>>, int> = 0>
         explicit ALPAKA_FN_INLINE ALPAKA_FN_HOST_ACC constexpr PackWrapper(OneElemPack_t<T_Elem_, T_SizeIndicator_> const& pack):packContent(static_cast<T_Elem>(pack.packContent)){}
 
         //conversion from other packs
@@ -298,7 +302,7 @@ namespace alpaka::lockstep
         return resultPack_t(resultPack_t(left).packContent opName resultPack_t(right).packContent);\
     }\
     /*Pack op OneElemPack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd, disable_if_PackAndOneElemPackAreEqual<T_LeftElem, T_LeftSizeInd, int> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (Pack_t<T_LeftElem, T_LeftSizeInd> const& left, OneElemPack_t<T_RightElem, T_RightSizeInd> const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
@@ -306,7 +310,7 @@ namespace alpaka::lockstep
         return resultPack_t(resultPack_t(left).packContent opName resultPack_t(right.packContent).packContent);\
     }\
     /*OneElemPack op Pack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd, disable_if_PackAndOneElemPackAreEqual<T_LeftElem, T_LeftSizeInd, char> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (OneElemPack_t<T_LeftElem, T_LeftSizeInd> const& left, Pack_t<T_RightElem, T_RightSizeInd> const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(right)>::SizeIndicator_t, result_elem_t>;\
@@ -314,7 +318,7 @@ namespace alpaka::lockstep
         return resultPack_t(resultPack_t(left.packContent).packContent opName resultPack_t(right).packContent);\
     }\
     /*OneElemPack op OneElemPack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd, disable_if_PackAndOneElemPackAreEqual<T_LeftElem, T_LeftSizeInd, bool> = false>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (OneElemPack_t<T_LeftElem, T_LeftSizeInd> const& left, OneElemPack_t<T_RightElem, T_RightSizeInd> const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using resultPack_t = OneElemPack_t<result_elem_t, result_elem_t>;\
@@ -353,7 +357,7 @@ namespace alpaka::lockstep
         return resultPack_t(comparePack_t(left).packContent opName comparePack_t(right).packContent);\
     }\
     /*Pack op OneElemPack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd, disable_if_PackAndOneElemPackAreEqual<T_LeftElem, T_LeftSizeInd, int> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (Pack_t<T_LeftElem, T_LeftSizeInd> const& left, OneElemPack_t<T_RightElem, T_RightSizeInd> const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using compare_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() + std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
@@ -363,7 +367,7 @@ namespace alpaka::lockstep
         return resultPack_t(comparePack_t(left).packContent opName comparePack_t(right.packContent).packContent);\
     }\
     /*OneElemPack op Pack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd, disable_if_PackAndOneElemPackAreEqual<T_LeftElem, T_LeftSizeInd, char> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (OneElemPack_t<T_LeftElem, T_LeftSizeInd> const& left, Pack_t<T_RightElem, T_RightSizeInd> const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using compare_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() + std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
@@ -373,7 +377,7 @@ namespace alpaka::lockstep
         return resultPack_t(comparePack_t(left.packContent).packContent opName comparePack_t(right).packContent);\
     }\
     /*OneElemPack op OneElemPack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd, disable_if_PackAndOneElemPackAreEqual<T_LeftElem, T_LeftSizeInd, bool> = false>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (OneElemPack_t<T_LeftElem, T_LeftSizeInd> const& left, OneElemPack_t<T_RightElem, T_RightSizeInd> const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using compare_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() + std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
@@ -398,16 +402,16 @@ namespace alpaka::lockstep
         using resultPack_t = Pack_t<result_elem_t, result_sizeInd_t>;\
         return resultPack_t(resultPack_t(left).packContent opName right);\
     }\
-    /*Pack op nonPack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
+    /*Pack op OneElemPack*/\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd, disable_if_PackAndOneElemPackAreEqual<T_LeftElem, T_LeftSizeInd, int> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (Pack_t<T_LeftElem, T_LeftSizeInd> const& left, OneElemPack_t<T_RightElem, T_RightSizeInd> const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
         using resultPack_t = Pack_t<result_elem_t, result_sizeInd_t>;\
         return resultPack_t(resultPack_t(left).packContent opName right.packContent);\
     }\
-    /*nonPack op nonPack*/\
-    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd>\
+    /*OneElemPack op OneElemPack*/\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightElem, typename T_RightSizeInd, disable_if_PackAndOneElemPackAreEqual<T_LeftElem, T_LeftSizeInd, char> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (OneElemPack_t<T_LeftElem, T_LeftSizeInd> const& left, OneElemPack_t<T_RightElem, T_RightSizeInd> const& right){\
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
