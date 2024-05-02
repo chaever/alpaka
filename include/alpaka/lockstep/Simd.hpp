@@ -323,6 +323,22 @@ namespace alpaka::lockstep
         using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using resultPack_t = OneElemPack_t<result_elem_t, result_elem_t>;\
         return resultPack_t(resultPack_t(left).packContent opName resultPack_t(right).packContent);\
+    }\
+    /*OneElemPack op nonPack*/\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightNonPack, std::enable_if_t<!isPackWrapper_v<T_RightNonPack>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (OneElemPack_t<T_LeftElem, T_LeftSizeInd> const& left, T_RightNonPack const& right){\
+        using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<std::decay_t<decltype(right)>>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = OneElemPack_t<result_elem_t, result_sizeInd_t>;\
+        return resultPack_t(resultPack_t(left).packContent opName resultPack_t(right).packContent);\
+    }\
+    /*nonPack op OneElemPack*/\
+    template<typename T_LeftNonPack, typename T_RightElem, typename T_RightSizeInd, std::enable_if_t<!isPackWrapper_v<T_LeftNonPack>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (T_LeftNonPack const& left, OneElemPack_t<T_RightElem, T_RightSizeInd> const& right){\
+        using result_elem_t = decltype(std::declval<std::decay_t<decltype(left)>>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(right)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = OneElemPack_t<result_elem_t, result_sizeInd_t>;\
+        return resultPack_t(resultPack_t(left).packContent opName resultPack_t(right).packContent);\
     }
 
 #define BINARY_READONLY_COMPARISON_OP(opName)\
@@ -383,6 +399,26 @@ namespace alpaka::lockstep
         using compare_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() + std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
         using resultPack_t = OneElemPack_t<result_elem_t, result_elem_t>;\
         return resultPack_t(left.packContent opName right.packContent);\
+    }\
+    /*OneElemPack op nonPack*/\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightNonPack, std::enable_if_t<!isPackWrapper_v<T_RightNonPack>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (OneElemPack_t<T_LeftElem, T_LeftSizeInd> const& left, T_RightNonPack const& right){\
+        using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<std::decay_t<decltype(right)>>());\
+        using compare_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() + std::declval<std::decay_t<decltype(right)>>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = OneElemPack_t<result_elem_t, result_sizeInd_t>;\
+        using comparePack_t = OneElemPack_t<compare_elem_t, result_sizeInd_t>;\
+        return resultPack_t(comparePack_t(left).packContent opName comparePack_t(right).packContent);\
+    }\
+    /*nonPack op OneElemPack*/\
+    template<typename T_LeftNonPack, typename T_RightElem, typename T_RightSizeInd, std::enable_if_t<!isPackWrapper_v<T_LeftNonPack>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (T_LeftNonPack const& left, OneElemPack_t<T_RightElem, T_RightSizeInd> const& right){\
+        using result_elem_t = decltype(std::declval<std::decay_t<decltype(left)>>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using compare_elem_t = decltype(std::declval<std::decay_t<decltype(left)>>() + std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(right)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = OneElemPack_t<result_elem_t, result_sizeInd_t>;\
+        using comparePack_t = OneElemPack_t<compare_elem_t, result_sizeInd_t>;\
+        return resultPack_t(comparePack_t(left).packContent opName comparePack_t(right).packContent);\
     }
 
 #define BINARY_READONLY_SHIFT_OP(opName)\
@@ -417,6 +453,22 @@ namespace alpaka::lockstep
         using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
         using resultPack_t = OneElemPack_t<result_elem_t, result_sizeInd_t>;\
         return resultPack_t(left.packContent opName right.packContent);\
+    }\
+    /*OneElemPack op nonPack*/\
+    template<typename T_LeftElem, typename T_LeftSizeInd, typename T_RightNonPack, std::enable_if_t<!isPackWrapper_v<T_RightNonPack>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (OneElemPack_t<T_LeftElem, T_LeftSizeInd> const& left, T_RightNonPack const& right){\
+        using result_elem_t = decltype(std::declval<typename std::decay_t<decltype(left)>::Elem_t>() opName std::declval<std::decay_t<decltype(right)>>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(left)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = OneElemPack_t<result_elem_t, result_sizeInd_t>;\
+        return resultPack_t(resultPack_t(left).packContent opName right);\
+    }\
+    /*nonPack op OneElemPack*/\
+    template<typename T_LeftNonPack, typename T_RightElem, typename T_RightSizeInd, std::enable_if_t<!isPackWrapper_v<T_LeftNonPack>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto XPR_OP_WRAPPER()opName (T_LeftNonPack const& left, OneElemPack_t<T_RightElem, T_RightSizeInd> const& right){\
+        using result_elem_t = decltype(std::declval<std::decay_t<decltype(left)>>() opName std::declval<typename std::decay_t<decltype(right)>::Elem_t>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, typename std::decay_t<decltype(right)>::SizeIndicator_t, result_elem_t>;\
+        using resultPack_t = OneElemPack_t<result_elem_t, result_sizeInd_t>;\
+        return resultPack_t(left opName resultPack_t(right).packContent);\
     }
 
 #define UNARY_READONLY_OP_PREFIX(opName)\
