@@ -42,6 +42,8 @@ namespace alpaka::lockstep
         class BinaryXpr;
         template<typename T_Functor, typename T_Operand>
         class UnaryXpr;
+        template<typename T_Lambda, typename... T_Args>
+        class NAryXpr;
         template<typename T_Elem, typename dataLocationTag>
         class ReadLeafXpr;
         template<typename T_Elem, typename dataLocationTag>
@@ -89,6 +91,11 @@ namespace alpaka::lockstep
                 static constexpr bool value = true;
             };
 
+            template<typename T_Lambda, typename... T_Args>
+            struct IsXpr<NAryXpr<T_Lambda, T_Args...>>{
+                static constexpr bool value = true;
+            };
+
             template<typename T_Elem, typename dataLocationTag>
             struct IsXpr<ReadLeafXpr<T_Elem, dataLocationTag> >{
                 static constexpr bool value = true;
@@ -112,6 +119,11 @@ namespace alpaka::lockstep
             template<typename T_Functor, typename T_Operand>
             struct AllChildrenAreConst<UnaryXpr<T_Functor, T_Operand>>{
                 static constexpr bool value = AllChildrenAreConst<std::decay_t<T_Operand>>::value;
+            };
+
+            template<typename T_Lambda, typename... T_Args>
+            struct AllChildrenAreConst<NAryXpr<T_Lambda, T_Args...>>{
+                static constexpr bool value = ( ... && (AllChildrenAreConst<std::decay_t<T_Args>>::value) );
             };
 
             template<typename T_Elem, typename dataLocationTag>
@@ -731,7 +743,7 @@ namespace alpaka::lockstep
 
         public:
 
-            constexpr static bool allChildrenAreConst = allChildrenAreConst_v<BinaryXpr>;//std::is_const_v<T_Left> && std::is_const_v<T_Right>;
+            constexpr static bool allChildrenAreConst = allChildrenAreConst_v<BinaryXpr>;
             using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const BinaryXpr, BinaryXpr>;
 
             template<typename T_LeftXpr, typename T_RightXpr>
@@ -754,36 +766,62 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i)
             {
-
-                constexpr bool isAssignment = std::is_same_v<std::decay_t<T_Functor>, Assignment>;
-                constexpr bool isBitwiseOr = std::is_same_v<std::decay_t<T_Functor>, BitwiseOr>;
-                constexpr bool isSimdLookupIdx = std::is_same_v<SimdLookupIndex<std::decay_t<decltype(i.m_forEach)>>, std::decay_t<T_Idx>>;
-                //static_assert(!(sizeof(decltype(m_rightOperand[i])) >= 16 && !isSimdLookupIdx));
-                static_assert(!(!isAssignment // if node doesnt assign
-                            && !isSimdLookupIdx // and there is a ScalarLookupIndex
-                            && sizeof(decltype(m_rightOperand[i]))>=16));// then at most 8 bytes are allowed
-
-                //static_assert(!(isBitwiseOr && !isSimdLookupIdx && decltype(BitwiseOr::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]))::laneCount > 1));
-
-
-                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i])>>);
-                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_rightOperand[i])>>);
-                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i] < m_rightOperand[i])>>);
-                //static_assert(isPackWrapper_v<std::decay_t<decltype(T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]))>>);
                 return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
             }
 
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
-                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i])>>);
-                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_rightOperand[i])>>);
-                //static_assert(isPackWrapper_v<std::decay_t<decltype(m_leftOperand[i] < m_rightOperand[i])>>);
-                //static_assert(isPackWrapper_v<std::decay_t<decltype(T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]))>>);
                 return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
             }
 
             XPR_ASSIGN_OPERATOR
+        };
+
+        template<typename T_Lambda, typename... T_Args>
+        class NAryXpr{
+
+            T_Lambda const m_lambda;
+            std::tuple<T_Args...> m_args;
+
+        public:
+            template<template<typename> typename T_Eval, typename T_First, typename... T_Args_>
+            static bool all(T_First first, T_Args_... args) { return T_Eval<T_First> && all<T_Eval>(args...); }
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr NAryXpr(T_Lambda const lambda, T_Args const... args):m_lambda(lambda), m_args(args...){
+                //static_assert( ... && isXpr_v<decltype(args)> );
+                //static_assert( ... && (!std::is_reference_v<decltype(args)>) );
+                static_assert(all<isXpr_v>(args...));
+
+
+                //static_assert(isXpr_v<decltype(args)> )... ;
+                //static_assert(!std::is_reference_v<decltype(args)> )... ;
+            }
+
+            constexpr NAryXpr(NAryXpr const&) = default;
+            constexpr NAryXpr(NAryXpr &)      = default;
+            constexpr NAryXpr(NAryXpr &&)     = default;
+
+            constexpr static bool allChildrenAreConst = allChildrenAreConst_v<NAryXpr>;
+            using ConstInfluencedAlias_t = std::conditional_t<allChildrenAreConst, const NAryXpr, NAryXpr>;
+
+            //returns an n-ary Xpr that is const if both its operands were
+            template<typename... T_Args_>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr static ConstInfluencedAlias_t makeConstIfPossible(T_Args_&&... args){
+                return NAryXpr{std::forward<T_Args_>(args)...};
+            }
+
+            template<typename T_Idx>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i)
+            {
+                return m_lambda(m_args[i]...);
+            }
+
+            template<typename T_Idx>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
+            {
+                return m_lambda(m_args[i]...);
+            }
         };
 
         template<typename T_Foreach, typename T_Elem, typename T_Xpr>
@@ -832,7 +870,11 @@ namespace alpaka::lockstep
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto evalToCtxVar(T_Foreach const& forEach, T_Xpr&& xpr){
             //Xpr -> take 1st entry -> get type -> get Elem_t -> remove const
             using Elem_t = std::decay_t<typename std::decay_t<decltype(std::forward<T_Xpr>(xpr)[std::declval<ScalarLookupIndex<T_Foreach, 0u>>()])>::Elem_t>;
-            using ContextVar_t = Variable<Elem_t, typename std::decay_t<decltype(forEach)>::BaseConfig>;
+            using Config_t = typename std::decay_t<decltype(forEach)>::BaseConfig;
+            using ContextVar_t = Variable<Elem_t, Config_t>;
+
+            //make sure that the layout of the ctx var we generate is compatible with the Simd packs we use
+            static_assert((Config_t::simdSize % laneCount_v<Elem_t>) == 0);
 
             ContextVar_t tmp;
             decltype(auto) storeXpr = (store(tmp) = std::forward<T_Xpr>(xpr));
