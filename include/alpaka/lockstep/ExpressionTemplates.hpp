@@ -123,7 +123,7 @@ namespace alpaka::lockstep
 
             template<typename T_Lambda, typename... T_Args>
             struct AllChildrenAreConst<NAryXpr<T_Lambda, T_Args...>>{
-                static constexpr bool value = ( ... && (AllChildrenAreConst<std::decay_t<T_Args>>::value) );
+                static constexpr bool value = std::conjunction_v<AllChildrenAreConst<std::decay_t<T_Args>>...>;
             };
 
             template<typename T_Elem, typename dataLocationTag>
@@ -147,6 +147,7 @@ namespace alpaka::lockstep
             struct AssignmentDestination<T_Elem, T_TypeToWrite, memoryLayouts::contigous>{
                 T_Elem & dest;
                 static_assert(!std::is_const_v<T_Elem>);
+                static_assert(!std::is_reference_v<T_Elem>);
                 constexpr AssignmentDestination(T_Elem & elem):dest(elem)
                 {
                 }
@@ -157,6 +158,7 @@ namespace alpaka::lockstep
                 MemAccessorFunctor<T_Lambda> const& storeFunc;
                 uint32_t const offset;
                 static_assert(!std::is_const_v<T_Elem>);
+                static_assert(!std::is_reference_v<T_Elem>);
                 constexpr AssignmentDestination(MemAccessorFunctor<T_Lambda> const& func, uint32_t const offset):storeFunc(func), offset(offset)
                 {
                 }
@@ -271,9 +273,14 @@ namespace alpaka::lockstep
                 return castedPack;
             }
             /*Scalar op Scalar*/
-            template<typename T_Left, typename T_Right, typename T_memLayout, std::enable_if_t<isPackWrapper_v<T_Right> && T_Right::laneCount==1, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, T_Left, T_memLayout> left, T_Right const& right){
+            template<typename T_Left, typename T_Right, std::enable_if_t<isPackWrapper_v<T_Right> && T_Right::laneCount==1, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, T_Left, memoryLayouts::contigous> left, T_Right const& right){
                 return left.dest = right;
+            }
+            /*Scalar op Scalar, nonContigous*/
+            template<typename T_Left, typename T_Right, typename T_Lambda, std::enable_if_t<isPackWrapper_v<T_Right> && T_Right::laneCount==1, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, T_Left, memoryLayouts::nonContigous<T_Lambda>> left, T_Right const& right){
+                return left.storeFunc[left.offset] = static_cast<T_Left>(right.packContent);
             }
             /*Pack op Scalar*/
             template<typename T_Left, typename T_Right, std::enable_if_t<isPackWrapper_v<T_Right> && T_Right::laneCount==1, int> = 0>
@@ -410,6 +417,9 @@ namespace alpaka::lockstep
             ///TODO we always make a copy here, but if the value passed to the constructor is a const ref to some outside object that has the same lifetime as *this , we could save by const&
             T_Elem const m_source;
 
+            static_assert(!std::is_const_v<T_Elem>);
+            static_assert(!std::is_reference_v<T_Elem>);
+
         public:
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ReadLeafXpr(T_Elem const& source) : m_source(source)
@@ -433,6 +443,10 @@ namespace alpaka::lockstep
         template<typename T_Elem>
         class WriteLeafXpr<T_Elem, dataLocationTags::scalar>{
             T_Elem & m_dest;
+
+            static_assert(!std::is_const_v<T_Elem>);
+            static_assert(!std::is_reference_v<T_Elem>);
+
         public:
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(T_Elem & dest) : m_dest(dest)
@@ -459,6 +473,10 @@ namespace alpaka::lockstep
         template<typename T_Elem>
         class ReadLeafXpr<T_Elem, dataLocationTags::perBlockArray>{
             T_Elem const * const m_source;
+
+            static_assert(!std::is_const_v<T_Elem>);
+            static_assert(!std::is_reference_v<T_Elem>);
+
         public:
 
             //takes a ptr that points to start of domain
@@ -498,6 +516,10 @@ namespace alpaka::lockstep
         template<typename T_Elem, typename T_Config>
         class ReadLeafXpr<T_Elem, dataLocationTags::ctxVar<T_Config>>{
             lockstep::Variable<T_Elem, T_Config> const& m_source;
+
+            static_assert(!std::is_const_v<T_Elem>);
+            static_assert(!std::is_reference_v<T_Elem>);
+
         public:
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ReadLeafXpr(lockstep::Variable<T_Elem, T_Config> const& source) : m_source(source)
@@ -536,7 +558,12 @@ namespace alpaka::lockstep
         //can be made from pointers, or some container classes
         template<typename T_Elem>
         class WriteLeafXpr<T_Elem, dataLocationTags::perBlockArray>{
+
             T_Elem * const m_dest;
+
+            static_assert(!std::is_const_v<T_Elem>);
+            static_assert(!std::is_reference_v<T_Elem>);
+
         public:
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(T_Elem * const dest) : m_dest(dest)
@@ -580,6 +607,7 @@ namespace alpaka::lockstep
             lockstep::Variable<T_Elem, T_Config> & m_dest;
 
             static_assert(!std::is_const_v<T_Elem>);
+            static_assert(!std::is_reference_v<T_Elem>);
 
         public:
 
@@ -620,6 +648,10 @@ namespace alpaka::lockstep
         template<typename T_Elem, typename T_Lambda>
         class ReadLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor<T_Lambda>>{
             MemAccessorFunctor<T_Lambda> const m_source;
+
+            static_assert(!std::is_const_v<T_Elem>);
+            static_assert(!std::is_reference_v<T_Elem>);
+
         public:
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr ReadLeafXpr(MemAccessorFunctor<T_Lambda> const source) : m_source(source)
@@ -657,6 +689,10 @@ namespace alpaka::lockstep
         template<typename T_Elem, typename T_Lambda>
         class WriteLeafXpr<T_Elem, dataLocationTags::gatherScatterFunctor<T_Lambda>>{
             MemAccessorFunctor<T_Lambda> const m_dest;
+
+            static_assert(!std::is_const_v<T_Elem>);
+            static_assert(!std::is_reference_v<T_Elem>);
+
         public:
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr WriteLeafXpr(MemAccessorFunctor<T_Lambda> const store) : m_dest(store)
@@ -784,19 +820,17 @@ namespace alpaka::lockstep
             T_Lambda const m_lambda;
             std::tuple<T_Args...> m_args;
 
-        public:
-            template<template<typename> typename T_Eval, typename T_First, typename... T_Args_>
-            static bool all(T_First first, T_Args_... args) { return T_Eval<T_First> && all<T_Eval>(args...); }
+            static_assert(std::conjunction_v<trait::IsXpr<std::decay_t<T_Args>>...>);
+            static_assert(!std::disjunction_v<std::is_reference<T_Args>...>);
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr NAryXpr(T_Lambda const lambda, T_Args const... args):m_lambda(lambda), m_args(args...){
-                //static_assert( ... && isXpr_v<decltype(args)> );
-                //static_assert( ... && (!std::is_reference_v<decltype(args)>) );
-                static_assert(all<isXpr_v>(args...));
-
-
-                //static_assert(isXpr_v<decltype(args)> )... ;
-                //static_assert(!std::is_reference_v<decltype(args)> )... ;
+            template<typename T_Idx, std::size_t... I>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) process(T_Idx const& idx, std::index_sequence<I...>) const {
+                return m_lambda(std::get<I>(m_args)[idx]...);
             }
+
+        public:
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr NAryXpr(T_Lambda const lambda, T_Args const... args):m_lambda(lambda), m_args(args...){}
 
             constexpr NAryXpr(NAryXpr const&) = default;
             constexpr NAryXpr(NAryXpr &)      = default;
@@ -814,13 +848,13 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i)
             {
-                return m_lambda(m_args[i]...);
+                return process(i, std::make_index_sequence<std::tuple_size_v<std::decay_t<decltype(m_args)> > >());
             }
 
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i) const
             {
-                return m_lambda(m_args[i]...);
+                return process(i, std::make_index_sequence<std::tuple_size_v<std::decay_t<decltype(m_args)> > >());
             }
         };
 
@@ -885,7 +919,7 @@ namespace alpaka::lockstep
         //single element, broadcasted if required
         template<typename T_Elem, std::enable_if_t<std::is_arithmetic_v<std::decay_t<T_Elem>>, int> >
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr const auto load(T_Elem&& elem){
-            return ReadLeafXpr<std::remove_reference_t<T_Elem>, dataLocationTags::scalar>(std::forward<T_Elem>(elem));
+            return ReadLeafXpr<std::decay_t<T_Elem>, dataLocationTags::scalar>(std::forward<T_Elem>(elem));
         }
 
         //pointer to threadblocks data
@@ -926,7 +960,14 @@ namespace alpaka::lockstep
         template<typename T_Lambda>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto store(MemAccessorFunctor<T_Lambda> func){
             using Elem_t = decltype(func[0]);
-            return WriteLeafXpr<Elem_t, dataLocationTags::gatherScatterFunctor<T_Lambda>>(func);
+            //if passed lambda does not return references, we cannot assign
+            static_assert(std::is_reference_v<Elem_t>);
+            return WriteLeafXpr<std::remove_reference_t<Elem_t>, dataLocationTags::gatherScatterFunctor<T_Lambda>>(func);
+        }
+
+        template<typename T_Lambda, typename... T_Args>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto makeNAryNode(T_Lambda const func, T_Args... args){
+            return NAryXpr<T_Lambda, T_Args...>(func, args...);
         }
 
 //clean up

@@ -52,7 +52,7 @@ namespace alpaka::lockstep
 
     //lane count for any type T, using the selected SIMD backend
     template<typename T_SizeIndicator>
-    static constexpr size_t laneCount_v = Pack_t<T_SizeIndicator, T_SizeIndicator>::laneCount;
+    static constexpr size_t laneCount_v = Pack_t<std::decay_t<T_SizeIndicator>, std::decay_t<T_SizeIndicator>>::laneCount;
 
     template<typename T_Type, typename T_SizeIndicator>
     using OneElemPack_t = PackWrapper<T_Type, T_SizeIndicator, simdBackendTags::ScalarSimdTag>;
