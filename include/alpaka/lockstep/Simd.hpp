@@ -310,6 +310,16 @@ namespace alpaka::lockstep
         return convertPack<resultPackLeft_t>(std::forward<T_Left>(left)) opName convertPack<resultPackRight_t>(std::forward<T_Right>(right));\
     }
 
+#define BINARY_READONLY_ARITHMETIC_OP_NO_NAMESPACE(opName)\
+    template<typename T_Left, typename T_Right, std::enable_if_t<alpaka::lockstep::packOperatorRequirements_v<T_Left, T_Right>, int> = 0>\
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) XPR_OP_WRAPPER()opName (T_Left&& left, T_Right&& right){\
+        using result_elem_t = decltype(std::declval<alpaka::lockstep::elemTOfPack_t<std::decay_t<T_Left>>>() opName std::declval<alpaka::lockstep::elemTOfPack_t<std::decay_t<T_Right>>>());\
+        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, alpaka::lockstep::sizeIndicatorTOfPack_t<std::decay_t<T_Left>>, result_elem_t>;\
+        using resultPackLeft_t = std::conditional_t<alpaka::lockstep::isTrivialPack_v<std::decay_t<T_Left>>, result_elem_t, Pack_t<result_elem_t, result_sizeInd_t>>;\
+        using resultPackRight_t = std::conditional_t<alpaka::lockstep::isTrivialPack_v<std::decay_t<T_Right>>, result_elem_t, Pack_t<result_elem_t, result_sizeInd_t>>;\
+        return alpaka::lockstep::convertPack<resultPackLeft_t>(std::forward<T_Left>(left)) opName alpaka::lockstep::convertPack<resultPackRight_t>(std::forward<T_Right>(right));\
+    }
+
 #define BINARY_READONLY_COMPARISON_OP(opName)\
     template<typename T_Left, typename T_Right, std::enable_if_t<packOperatorRequirements_v<T_Left, T_Right>, int> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) XPR_OP_WRAPPER()opName (T_Left&& left, T_Right&& right){\
@@ -351,8 +361,10 @@ namespace alpaka::lockstep
         return fName(std::forward<T_Pack>(pack));\
     }
 
-    BINARY_READONLY_ARITHMETIC_OP(+)
-    BINARY_READONLY_ARITHMETIC_OP(-)
+    //BINARY_READONLY_ARITHMETIC_OP(+)
+    //BINARY_READONLY_ARITHMETIC_OP(-)
+    BINARY_READONLY_ARITHMETIC_OP_NO_NAMESPACE(+)
+    BINARY_READONLY_ARITHMETIC_OP_NO_NAMESPACE(-)
     BINARY_READONLY_ARITHMETIC_OP(*)
     BINARY_READONLY_ARITHMETIC_OP(/)
     BINARY_READONLY_ARITHMETIC_OP(&)

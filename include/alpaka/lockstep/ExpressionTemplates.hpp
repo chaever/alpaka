@@ -223,7 +223,22 @@ namespace alpaka::lockstep
         ///TODO remove
 #if 0
         BINARY_READONLY_OP(Addition, +)
+        BINARY_READONLY_OP(Subtraction, -)
 #else
+    }// namespace expr
+
+    //helpers
+    template<typename T_Left, typename T_Right>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) veryExplicitAdd(T_Left&& left, T_Right&& right){
+        return left+right;
+    }
+    template<typename T_Left, typename T_Right>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) veryExplicitSub(T_Left&& left, T_Right&& right){
+        return left+right;
+    }
+
+    namespace expr
+    {
         struct Addition{
             template<typename T_Left, typename T_Right>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left&& left, T_Right&& right){
@@ -241,39 +256,57 @@ namespace alpaka::lockstep
                 using t4 = intPack&&;
                 using t5 = std::decay_t<t3>;
                 using t6 = std::decay_t<t4>;
+                using t7 = std::decay_t<t1>;
+                using t8 = std::decay_t<t2>;
 
+                constexpr bool bothAreTrivial = isTrivialPack_v<t7> && isTrivialPack_v<t8>;
+                constexpr bool bothArePacksOfTheSameType = isNonTrivialPack_v<t7> && isNonTrivialPack_v<t8> && std::is_same_v<elemTOfPack_t<t7>, elemTOfPack_t<t8>>;
 
-#if 0
                 //actual types of left / right
-                static_assert(std::is_same_v<t1, unsigned int&&>);
-                static_assert(std::is_same_v<t2, intPack&&>);
-                static_assert(std::is_same_v<t1, t3>);
-                static_assert(std::is_same_v<t2, t4>);
-
-                t3 a(0);
-                t4 b(0);
-                using resultOfUintPlusPackOfInt_1 = decltype(a+b);
+                //static_assert(std::is_same_v<t1, unsigned int&&>);
+                //static_assert(std::is_same_v<t2, intPack&&>);
+                //static_assert(std::is_same_v<t1, t3>);
+                //static_assert(std::is_same_v<t2, t4>);
 
                 //works
                 using addResultType_3_4 = decltype(std::declval<t3>() + std::declval<t4>());
 
-                static_assert(std::is_same_v<addResultType_3_4, uintPack>);
-                static_assert(std::is_same_v<elemTOfPack_t<std::decay_t<addResultType_3_4>>, resultOfUintPlusInt>);
+                //static_assert(std::is_same_v<addResultType_3_4, uintPack>);
+                //static_assert(std::is_same_v<elemTOfPack_t<std::decay_t<addResultType_3_4>>, resultOfUintPlusInt>);
 
-                static_assert(packOperatorRequirements_v<t1, t2>);
-                static_assert(packOperatorRequirements_v<t3, t4>);
+                static_assert(packOperatorRequirements_v<t5, t6>);
+                static_assert(packOperatorRequirements_v<t7, t8> || bothAreTrivial || bothArePacksOfTheSameType);
 
                 //any of these 3 doesnt compile
-                using addResultType_1_4 = decltype(std::declval<t1>() + std::declval<t4>());
+                /*using addResultType_1_4 = decltype(std::declval<t1>() + std::declval<t4>());
                 using addResultType_3_2 = decltype(std::declval<t3>() + std::declval<t2>());
-                using addResultType_1_2 = decltype(std::declval<t1>() + std::declval<t2>());
+                using addResultType_1_2 = decltype(std::declval<t1>() + std::declval<t2>());*/
 
-                return std::forward<T_Left>(left) + std::forward<T_Right>(right);
-#else
-                t5 c(left);
-                t6 d(right);
-                return c+d;
-#endif
+                //return std::forward<T_Left>(left) + std::forward<T_Right>(right);
+                return veryExplicitAdd(std::forward<T_Left>(left), std::forward<T_Right>(right));
+            }
+            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
+                return load(std::forward<T_Other>(other));
+            }
+            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
+                return std::forward<T_Other>(other);
+            }
+            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){
+                return load(std::forward<T_Other>(other));
+            }
+            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){
+                return std::forward<T_Other>(other);
+            }
+        };
+
+        struct Subtraction{
+            template<typename T_Left, typename T_Right>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left&& left, T_Right&& right){
+                return veryExplicitSub(std::forward<T_Left>(left), std::forward<T_Right>(right));
             }
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
@@ -294,8 +327,6 @@ namespace alpaka::lockstep
         };
 #endif
 
-
-        BINARY_READONLY_OP(Subtraction, -)
         BINARY_READONLY_OP(Multiplication, *)
         BINARY_READONLY_OP(Division, /)
         BINARY_READONLY_OP(BitwiseAnd, &)
@@ -321,6 +352,7 @@ namespace alpaka::lockstep
 #undef UNARY_READONLY_OP_POSTFIX
 #undef UNARY_FREE_FUNCTION
 
+
         struct Assignment{
             /*Pack op Pack*/
             template<typename T_Left, typename T_Right, std::enable_if_t<isNonTrivialPack_v<T_Right>, int> = 0>
@@ -340,7 +372,7 @@ namespace alpaka::lockstep
                 auto const castedPack = Pack_t<T_Left, T_Left>(right);
 
                 for(auto i=0u;i<laneCount_v<Pack_t<T_Left, T_Left>>;++i){
-                    left.storeFunc[left.offset+i] = castedPack[i];
+                    left.storeFunc(left.offset+i) = castedPack[i];
                     //std::cout << "Assignment::eval<Pack>: idx="<<(left.offset+i)<<std::endl;
                 }
 
@@ -354,7 +386,7 @@ namespace alpaka::lockstep
             /*Scalar op Scalar, nonContigous*/
             template<typename T_Left, typename T_Right, typename T_Lambda, std::enable_if_t<isTrivialPack_v<T_Right>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(detail::AssignmentDestination<T_Left, T_Left, memoryLayouts::nonContigous<T_Lambda>> left, T_Right const& right){
-                return left.storeFunc[left.offset] = static_cast<T_Left>(right.packContent);
+                return left.storeFunc(left.offset) = static_cast<T_Left>(right);
             }
             /*Pack op Scalar*/
             template<typename T_Left, typename T_Right, std::enable_if_t<isTrivialPack_v<T_Right>, int> = 0>
@@ -371,7 +403,7 @@ namespace alpaka::lockstep
                 static_assert(!std::is_same_v<bool, T_Left>);
                 auto const castedValue = static_cast<T_Left>(right);
                 for(auto i=0u;i<laneCount_v<Pack_t<T_Left, T_Left>>;++i){
-                    left.storeFunc[left.offset+i] = castedValue;
+                    left.storeFunc(left.offset+i) = castedValue;
                 }
                 return Pack_t<T_Left, T_Left>::broadcast(right);
             }
@@ -875,17 +907,6 @@ namespace alpaka::lockstep
             template<typename T_Idx>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator[](T_Idx const i)
             {
-                ///TODO remove
-                using result_t = std::decay_t<decltype(T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]))>;
-                using left_t = std::decay_t<decltype(m_leftOperand[i])>;
-                using right_t = std::decay_t<decltype(m_rightOperand[i])>;
-
-                static_assert(isNonTrivialPack_v<std::experimental::parallelism_v2::simd<unsigned int, std::experimental::parallelism_v2::simd_abi::_Fixed<8> > >);
-
-                static_assert(!(isScalarLookupIdx_v<std::decay_t<T_Idx>> && isNonTrivialPack_v<right_t>));
-                static_assert(!(isScalarLookupIdx_v<std::decay_t<T_Idx>> && isNonTrivialPack_v<result_t>));
-                static_assert(!(isTrivialPack_v<left_t> && isTrivialPack_v<right_t> && !isTrivialPack_v<result_t>));
-
                 return T_Functor::SIMD_EVAL_F(m_leftOperand[i], m_rightOperand[i]);
             }
 
