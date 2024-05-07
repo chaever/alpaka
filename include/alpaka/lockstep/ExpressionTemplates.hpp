@@ -234,7 +234,7 @@ namespace alpaka::lockstep
     }
     template<typename T_Left, typename T_Right>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) veryExplicitSub(T_Left&& left, T_Right&& right){
-        return left+right;
+        return left-right;
     }
 
     namespace expr
