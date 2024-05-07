@@ -19,9 +19,6 @@ namespace alpaka::lockstep
 
     namespace expr
     {
-        template<typename T_Lambda>
-        using MemAccessorFunctor = alpaka::lockstep::MemAccessorFunctor<T_Lambda>;
-
         namespace dataLocationTags{
             class scalar{};
             template<typename T_Config>
@@ -242,7 +239,7 @@ namespace alpaka::lockstep
         struct Addition{
             template<typename T_Left, typename T_Right>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left&& left, T_Right&& right){
-
+#if 0
                 using namespace alpaka::lockstep;
                 using uintPack = std::experimental::parallelism_v2::simd<unsigned int, std::experimental::parallelism_v2::simd_abi::_Fixed<8> >;
                 using intPack = std::experimental::parallelism_v2::simd<int, std::experimental::parallelism_v2::simd_abi::_Fixed<8> >;
@@ -281,7 +278,7 @@ namespace alpaka::lockstep
                 /*using addResultType_1_4 = decltype(std::declval<t1>() + std::declval<t4>());
                 using addResultType_3_2 = decltype(std::declval<t3>() + std::declval<t2>());
                 using addResultType_1_2 = decltype(std::declval<t1>() + std::declval<t2>());*/
-
+#endif
                 //return std::forward<T_Left>(left) + std::forward<T_Right>(right);
                 return veryExplicitAdd(std::forward<T_Left>(left), std::forward<T_Right>(right));
             }
@@ -781,13 +778,13 @@ namespace alpaka::lockstep
                 //const auto & worker = idx.m_forEach.getWorker();
                 //std::cout << "ReadLeafXpr <dataLocationTags::gatherScatterFunctor>::operator[](SimdLookupIndex): Worker " << worker.getWorkerIdx() << " accessing index " << static_cast<uint32_t>(idx) << ", simd-offset index=" << (laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))) << std::endl;
 
-                return Pack_t<T_Elem, T_Elem>(MemAccessorFunctor([&idx, this](auto const i)constexpr{
+                return makePackFromLambda([&idx, this](auto const i)constexpr{
                     const auto & worker = idx.m_forEach.getWorker();
 
                     //if(worker.getWorkerIdx()==0){std::cout << "Pack_t::CTOR: Worker " << worker.getWorkerIdx() << " accessing index " << i << ", simd-offset index=" << (i + laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))) << std::endl;}
 
                     return m_source(i + laneCount_v<Pack_t<T_Elem, T_Elem>> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx)));
-                }));
+                });
             }
         };
 
@@ -966,7 +963,7 @@ namespace alpaka::lockstep
         template<typename T_Foreach, typename T_Elem, typename T_Xpr>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr void evaluateExpression(T_Foreach const& forEach, T_Xpr&& xpr)
         {
-            constexpr auto lanes = laneCount_v<Pack_t<T_Elem, T_Elem>>;
+            constexpr auto lanes = laneCount_v<Pack_t<std::decay_t<T_Elem>, std::decay_t<T_Elem>>>;
             constexpr auto numWorkers = std::decay_t<decltype(forEach.getWorker())>::numWorkers;
             constexpr auto domainSize = std::decay_t<decltype(forEach)>::domainSize;
 
@@ -1008,7 +1005,7 @@ namespace alpaka::lockstep
         template<typename T_Foreach, typename T_Xpr>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto evalToCtxVar(T_Foreach const& forEach, T_Xpr&& xpr){
             using XprPack_t = std::decay_t<typename std::decay_t<decltype(std::forward<T_Xpr>(xpr)[std::declval<SimdLookupIndex<T_Foreach>>()])>>;
-            using Elem_t = elemTOfPack_t<XprPack_t>;
+            using Elem_t = std::decay_t<elemTOfPack_t<XprPack_t>>;
             using Config_t = typename std::decay_t<decltype(forEach)>::BaseConfig;
             using ContextVar_t = Variable<Elem_t, Config_t>;
 

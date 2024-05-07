@@ -37,55 +37,13 @@ namespace alpaka::lockstep
         template<typename T_SimdBackend, typename T_Elem, typename T_SizeIndicator>
         struct PackTypeForBackend;
 
-        template<typename T_Elem, typename T_SizeIndicator>
-        struct PackTypeForBackend<simdBackendTags::ScalarSimdTag, T_Elem, T_SizeIndicator>{
-            static_assert(isTrivialPack_v<T_Elem>);
-            using type = T_Elem;
-        };
-
-        //fallback definition, any type counts as pack of size 1 if its arithmetic for any Simd backend
         template<typename T_SimdBackend, typename T_Type>
-        struct IsPack{
-            static_assert(!std::is_reference_v<T_Type>);
-            static constexpr bool value = isTrivialPack_v<T_Type>;
-        };
+        struct IsPack;
 
-        //fallback definition, compiles only for trivial packs
         template<typename T_SimdBackend, typename T_Pack>
-        struct PackTraits{
-
-            static_assert(isTrivialPack_v<T_Pack>);
-            static_assert(!std::is_reference_v<T_Pack>);
-
-            using SizeIndicator_t = T_Pack;
-            using Elem_t = T_Pack;
-            static constexpr auto laneCount = 1u;
-
-            //conversion from T_From to T_Pack (brodacast/elemWiseCast)
-            template<typename T_From>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(T_From&& t){
-                //when converting to trivial packs, the source must also be trivial as we would have to discard elements otherwise
-                static_assert(isTrivialPack_v<std::decay_t<T_From>>);
-                return static_cast<Elem_t>(std::forward<T_From>(t));
-            }
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) loadUnaligned(Elem_t const * const ptr){
-                return *ptr;
-            }
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr void storeUnaligned(T_Pack const value, Elem_t * const ptr){
-                *ptr = value;
-            }
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Pack const& value, uint32_t const){
-                return value;
-            }
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Pack & value, uint32_t const){
-                return value;
-            }
-        };
+        struct PackTraits;
     }
+
 
     template<typename T_Pack>
     constexpr bool isPack_v = trait::IsPack<simdBackendTags::SelectedSimdBackendTag, T_Pack>::value;
@@ -98,6 +56,10 @@ namespace alpaka::lockstep
 
     template<typename T_Pack>
     using sizeIndicatorTOfPack_t = typename trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, T_Pack>::SizeIndicator_t;
+
+    //pack type that holds multiple elements if the hardware allows it.
+    template<typename T_Elem, typename T_SizeIndicator>
+    using Pack_t = typename trait::PackTypeForBackend<simdBackendTags::SelectedSimdBackendTag, T_Elem, T_SizeIndicator>::type;
 
     template<typename T_Pack>
     constexpr auto laneCount_v = trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, T_Pack>::laneCount;
@@ -123,9 +85,12 @@ namespace alpaka::lockstep
         return trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, std::decay_t<T_Pack>>::getElemAt(pack, i);
     }
 
-    //pack type that holds multiple elements if the hardware allows it.
-    template<typename T_Elem, typename T_SizeIndicator>
-    using Pack_t = typename trait::PackTypeForBackend<simdBackendTags::SelectedSimdBackendTag, T_Elem, T_SizeIndicator>::type;
+    template<typename T_Lambda>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) makePackFromLambda(T_Lambda&& lambda){
+        using lambda_return_t = std::decay_t<decltype(lambda(0u))>;
+        static_assert(!std::is_same_v<bool, lambda_return_t>);
+        return trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, Pack_t<lambda_return_t, lambda_return_t> >::constructFromLambda(std::forward<T_Lambda>(lambda));
+    }
 
     //for loading packs from non-contiguous memory
     template<typename T_Lambda>
@@ -136,6 +101,64 @@ namespace alpaka::lockstep
         constexpr MemAccessorFunctor(MemAccessorFunctor &)      = default;
         constexpr MemAccessorFunctor(MemAccessorFunctor &&)     = default;
     };
+
+    inline namespace trait{
+
+        template<typename T_Elem, typename T_SizeIndicator>
+        struct PackTypeForBackend<simdBackendTags::ScalarSimdTag, T_Elem, T_SizeIndicator>{
+            static_assert(isTrivialPack_v<T_Elem>);
+            using type = T_Elem;
+        };
+
+        //fallback definition, any type counts as pack of size 1 if its arithmetic for any Simd backend
+        template<typename T_SimdBackend, typename T_Type>
+        struct IsPack{
+            static_assert(!std::is_reference_v<T_Type>);
+            static constexpr bool value = isTrivialPack_v<T_Type>;
+        };
+
+        //fallback definition, compiles only for trivial packs
+        template<typename T_SimdBackend, typename T_Pack>
+        struct PackTraits{
+
+            static_assert(isTrivialPack_v<T_Pack>);
+            static_assert(!std::is_reference_v<T_Pack>);
+            static_assert(!std::is_const_v<T_Pack>);
+
+            using SizeIndicator_t = T_Pack;
+            using Elem_t = T_Pack;
+            static constexpr auto laneCount = 1u;
+
+            //conversion from T_From to T_Pack (brodacast/elemWiseCast)
+            template<typename T_From>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(T_From&& t){
+                //when converting to trivial packs, the source must also be trivial as we would have to discard elements otherwise
+                static_assert(isTrivialPack_v<std::decay_t<T_From>>);
+                return static_cast<Elem_t>(std::forward<T_From>(t));
+            }
+
+            template<typename T_Lambda>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) constructFromLambda(T_Lambda&& lambda){
+                return std::forward<T_Lambda>(lambda)(0u);
+            }
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) loadUnaligned(Elem_t const * const ptr){
+                return *ptr;
+            }
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr void storeUnaligned(T_Pack const value, Elem_t * const ptr){
+                *ptr = value;
+            }
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Pack & value, uint32_t const){
+                return value;
+            }
+
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Pack const& value, uint32_t const){
+                return value;
+            }
+        };
+    }
 
 #if ALPAKA_USE_STD_SIMD
 
@@ -207,6 +230,11 @@ namespace alpaka::lockstep
                 return tmp;
             }
 
+            template<typename T_Lambda>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) constructFromLambda(T_Lambda&& lambda){
+                return stdMultipliedSimdAbiPack_t(std::forward<T_Lambda>(lambda));
+            }
+
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) loadUnaligned(Elem_t const * const ptr){
                 return stdMultipliedSimdAbiPack_t{ptr, std::experimental::element_aligned};
             }
@@ -253,6 +281,12 @@ namespace alpaka::lockstep
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(std::experimental::simd_mask<T_From, detail::stdMultipliedSimdAbi_t<T_From, T_simdMult>> const& mask){
                 static_assert(laneCount == std::experimental::simd_mask<T_From, detail::stdMultipliedSimdAbi_t<T_From, T_simdMult>>::size());
                 return mask;
+            }
+
+            template<typename T_Lambda>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) constructFromLambda(T_Lambda&& lambda){
+                static_assert(std::is_convertible_v<decltype(std::forward<T_Lambda>(lambda)(0u)), const bool>);
+                return stdMultipliedSimdAbiMask_t(std::forward<T_Lambda>(lambda));
             }
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) loadUnaligned(Elem_t const * const ptr){
