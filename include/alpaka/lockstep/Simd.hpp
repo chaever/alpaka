@@ -21,7 +21,7 @@ namespace alpaka::lockstep
         class StdSimdNTimesTag{};
 
 #if 1 && ALPAKA_USE_STD_SIMD
-        using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<8>;
+        using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<4>;
 #else
         //GPU must use scalar simd packs
         using SelectedSimdBackendTag = simdBackendTags::ScalarSimdTag;
