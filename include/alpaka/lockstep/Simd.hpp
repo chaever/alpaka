@@ -21,7 +21,7 @@ namespace alpaka::lockstep
         class StdSimdNTimesTag{};
 
 #if 1 && ALPAKA_USE_STD_SIMD
-        using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<4>;
+        using SelectedSimdBackendTag = simdBackendTags::StdSimdNTimesTag<8>;
 #else
         //GPU must use scalar simd packs
         using SelectedSimdBackendTag = simdBackendTags::ScalarSimdTag;
@@ -182,6 +182,9 @@ namespace alpaka::lockstep
             //make sure that only bool can have T_Elem != T_SizeIndicator
             static_assert(packIsMask || std::is_same_v<T_Elem, T_SizeIndicator>);
             static_assert(!std::is_same_v<bool, T_SizeIndicator>);
+
+            //std::simd imposes a limit on how big a pack can be
+            static_assert(detail::sizeOfNativePack<T_SizeIndicator> * T_simdMult <= std::experimental::simd_abi::max_fixed_size<T_SizeIndicator>);
 
             using type = std::conditional_t<packIsMask,
             std::experimental::simd_mask<T_SizeIndicator, detail::stdMultipliedSimdAbi_t<T_SizeIndicator, T_simdMult>>,
