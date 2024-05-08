@@ -702,7 +702,7 @@ namespace alpaka::lockstep
                 //const auto & worker = idx.m_forEach.getWorker();
                 //std::cout << "ReadLeafXpr <dataLocationTags::gatherScatterFunctor>::operator[](SimdLookupIndex): Worker " << worker.getWorkerIdx() << " accessing index " << static_cast<uint32_t>(idx) << ", simd-offset index=" << (laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))) << std::endl;
 
-                return makePackFromLambda([&idx, this](auto const i)constexpr{
+                return makePackFromLambda([&idx, this](auto const i) ALPAKA_LAMBDA_INLINE_WITH_SPECIFIERS(constexpr) {
                     const auto & worker = idx.m_forEach.getWorker();
 
                     //if(worker.getWorkerIdx()==0){std::cout << "Pack_t::CTOR: Worker " << worker.getWorkerIdx() << " accessing index " << i << ", simd-offset index=" << (i + laneCount_v<T_Elem> * (worker.getWorkerIdx() + worker.getNumWorkers() * static_cast<uint32_t>(idx))) << std::endl;}
