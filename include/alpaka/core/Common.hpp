@@ -82,6 +82,24 @@
 #    define ALPAKA_NO_HOST_ACC_WARNING
 #endif
 
+#ifndef ALPAKA_LAMBDA_INLINE_WITH_SPECIFIERS
+#    if defined(__clang__) || defined(__INTEL_LLVM_COMPILER)
+#        define ALPAKA_LAMBDA_INLINE_WITH_SPECIFIERS(...) __attribute__((always_inline)) __VA_ARGS__
+#    elif defined(__GNUC__) || (defined(__NVCC__) && !defined(_MSC_VER))
+#        define ALPAKA_LAMBDA_INLINE_WITH_SPECIFIERS(...) __VA_ARGS__ __attribute__((always_inline))
+#    elif defined(_MSC_VER)
+#        define ALPAKA_LAMBDA_INLINE_WITH_SPECIFIERS(...)                                                              \
+            __VA_ARGS__ /* FIXME: MSVC cannot combine constexpr and [[msvc::forceinline]] */
+#    else
+#        define ALPAKA_LAMBDA_INLINE_WITH_SPECIFIERS(...) __VA_ARGS__
+#        warning ALPAKA_LAMBDA_INLINE_WITH_SPECIFIERS not defined for this compiler
+#    endif
+#endif
+#ifndef ALPAKA_LAMBDA_INLINE
+/// Gives strong indication to the compiler to inline the attributed lambda.
+#    define ALPAKA_LAMBDA_INLINE ALPAKA_LAMBDA_INLINE_WITH_SPECIFIERS()
+#endif
+
 //! Macro defining the inline function attribute.
 //!
 //! The macro should stay on the left hand side of keywords, e.g. 'static', 'constexpr', 'explicit' or the return type.
