@@ -146,8 +146,10 @@ namespace alpaka::lockstep
                 return *ptr;
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr void storeUnaligned(T_Pack const value, Elem_t * const ptr){
-                *ptr = value;
+            template<typename T_Pack_>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr void storeUnaligned(T_Pack_&& value, Elem_t * const ptr){
+                static_assert(std::is_same_v<T_Pack, std::decay_t<T_Pack_>>);
+                *ptr = std::forward<T_Pack_>(value);
             }
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Pack & value, uint32_t const){
@@ -208,10 +210,10 @@ namespace alpaka::lockstep
             using Elem_t = T_Elem;
             static constexpr auto laneCount = stdMultipliedSimdAbiPack_t::size();
 
-            //brodacast
+            //broadcast
             template<typename T_From, std::enable_if_t<isTrivialPack_v<T_From>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(T_From&& elem){
-                return static_cast<Elem_t>(std::forward<T_From>(elem));
+                return stdMultipliedSimdAbiPack_t(static_cast<Elem_t>(std::forward<T_From>(elem)));
             }
 
             //elem-wise cast

@@ -169,10 +169,37 @@ namespace alpaka::lockstep
         template<typename T>
         static constexpr bool isXpr_v = trait::IsXpr<std::decay_t<T>>::value;
 
+#define XPR_OP_WRAPPER() operator
+
 #define BINARY_READONLY_OP(name, shortFunc)\
         struct name{\
             template<typename T_Left, typename T_Right>\
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left&& left, T_Right&& right){\
+                return std::forward<T_Left>(left) shortFunc std::forward<T_Right>(right);\
+            }\
+            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){\
+                return load(std::forward<T_Other>(other));\
+            }\
+            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){\
+                return std::forward<T_Other>(other);\
+            }\
+            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){\
+                return load(std::forward<T_Other>(other));\
+            }\
+            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){\
+                return std::forward<T_Other>(other);\
+            }\
+        };
+
+#define BINARY_READONLY_OP_INCLUDE(name, shortFunc)\
+        struct name{\
+            template<typename T_Left, typename T_Right>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left&& left, T_Right&& right){\
+                using alpaka::lockstep::XPR_OP_WRAPPER()shortFunc ;\
                 return std::forward<T_Left>(left) shortFunc std::forward<T_Right>(right);\
             }\
             template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>\
@@ -217,112 +244,8 @@ namespace alpaka::lockstep
             }\
         };
 
-        ///TODO remove
-#if 0
-        BINARY_READONLY_OP(Addition, +)
-        BINARY_READONLY_OP(Subtraction, -)
-#else
-    }// namespace expr
-
-    //helpers
-    template<typename T_Left, typename T_Right>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) veryExplicitAdd(T_Left&& left, T_Right&& right){
-        return std::forward<T_Left>(left) + std::forward<T_Right>(right);
-    }
-    template<typename T_Left, typename T_Right>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) veryExplicitSub(T_Left&& left, T_Right&& right){
-        return std::forward<T_Left>(left) - std::forward<T_Right>(right);
-    }
-
-    namespace expr
-    {
-        struct Addition{
-            template<typename T_Left, typename T_Right>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left&& left, T_Right&& right){
-#if 0
-                using namespace alpaka::lockstep;
-                using uintPack = std::experimental::parallelism_v2::simd<unsigned int, std::experimental::parallelism_v2::simd_abi::_Fixed<8> >;
-                using intPack = std::experimental::parallelism_v2::simd<int, std::experimental::parallelism_v2::simd_abi::_Fixed<8> >;
-
-                using resultOfUintPlusInt = decltype(std::declval<unsigned int>() + std::declval<int>());
-                static_assert(std::is_same_v<resultOfUintPlusInt, unsigned int>);
-
-                using t1 = decltype(std::forward<T_Left>(left));
-                using t2 = decltype(std::forward<T_Right>(right));
-                using t3 = unsigned int&&;
-                using t4 = intPack&&;
-                using t5 = std::decay_t<t3>;
-                using t6 = std::decay_t<t4>;
-                using t7 = std::decay_t<t1>;
-                using t8 = std::decay_t<t2>;
-
-                constexpr bool bothAreTrivial = isTrivialPack_v<t7> && isTrivialPack_v<t8>;
-                constexpr bool bothArePacksOfTheSameType = isNonTrivialPack_v<t7> && isNonTrivialPack_v<t8> && std::is_same_v<elemTOfPack_t<t7>, elemTOfPack_t<t8>>;
-
-                //actual types of left / right
-                //static_assert(std::is_same_v<t1, unsigned int&&>);
-                //static_assert(std::is_same_v<t2, intPack&&>);
-                //static_assert(std::is_same_v<t1, t3>);
-                //static_assert(std::is_same_v<t2, t4>);
-
-                //works
-                using addResultType_3_4 = decltype(std::declval<t3>() + std::declval<t4>());
-
-                //static_assert(std::is_same_v<addResultType_3_4, uintPack>);
-                //static_assert(std::is_same_v<elemTOfPack_t<std::decay_t<addResultType_3_4>>, resultOfUintPlusInt>);
-
-                static_assert(packOperatorRequirements_v<t5, t6>);
-                static_assert(packOperatorRequirements_v<t7, t8> || bothAreTrivial || bothArePacksOfTheSameType);
-
-                //any of these 3 doesnt compile
-                /*using addResultType_1_4 = decltype(std::declval<t1>() + std::declval<t4>());
-                using addResultType_3_2 = decltype(std::declval<t3>() + std::declval<t2>());
-                using addResultType_1_2 = decltype(std::declval<t1>() + std::declval<t2>());*/
-#endif
-                //return std::forward<T_Left>(left) + std::forward<T_Right>(right);
-                return veryExplicitAdd(std::forward<T_Left>(left), std::forward<T_Right>(right));
-            }
-            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
-                return load(std::forward<T_Other>(other));
-            }
-            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
-                return std::forward<T_Other>(other);
-            }
-            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){
-                return load(std::forward<T_Other>(other));
-            }
-            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){
-                return std::forward<T_Other>(other);
-            }
-        };
-
-        struct Subtraction{
-            template<typename T_Left, typename T_Right>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) SIMD_EVAL_F(T_Left&& left, T_Right&& right){
-                return veryExplicitSub(std::forward<T_Left>(left), std::forward<T_Right>(right));
-            }
-            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
-                return load(std::forward<T_Other>(other));
-            }
-            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeRightXprFromContainer(T_Other&& other){
-                return std::forward<T_Other>(other);
-            }
-            template<typename T_Other, std::enable_if_t<!isXpr_v<T_Other>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){
-                return load(std::forward<T_Other>(other));
-            }
-            template<typename T_Other, std::enable_if_t< isXpr_v<T_Other>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) makeLeftXprFromContainer(T_Other&& other){
-                return std::forward<T_Other>(other);
-            }
-        };
-#endif
+        BINARY_READONLY_OP_INCLUDE(Addition, +)
+        BINARY_READONLY_OP_INCLUDE(Subtraction, -)
 
         BINARY_READONLY_OP(Multiplication, *)
         BINARY_READONLY_OP(Division, /)
@@ -348,6 +271,7 @@ namespace alpaka::lockstep
 #undef UNARY_READONLY_OP_PREFIX
 #undef UNARY_READONLY_OP_POSTFIX
 #undef UNARY_FREE_FUNCTION
+#undef XPR_OP_WRAPPER
 
 
         struct Assignment{
