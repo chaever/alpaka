@@ -152,11 +152,8 @@ namespace alpaka::lockstep
                 *ptr = std::forward<T_Pack_>(value);
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Pack & value, uint32_t const){
-                return value;
-            }
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Pack const& value, uint32_t const){
+            template<typename T_Source, std::enable_if_t<std::is_same_v<T_Pack, std::decay_t<T_Source>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Source&& value, uint32_t const){
                 return value;
             }
         };
@@ -251,12 +248,9 @@ namespace alpaka::lockstep
                 std::forward<T_Source>(value).copy_to(ptr, std::experimental::element_aligned);
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(stdMultipliedSimdAbiPack_t & value, uint32_t const i){
-                return value[i];
-            }
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(stdMultipliedSimdAbiPack_t const& value, uint32_t const i){
-                return value[i];
+            template<typename T_Source, std::enable_if_t<std::is_same_v<stdMultipliedSimdAbiPack_t, std::decay_t<T_Source>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Source&& value, uint32_t const i){
+                return std::forward<T_Source>(value)[i];
             }
         };
 
@@ -306,12 +300,9 @@ namespace alpaka::lockstep
                 std::forward<T_Source>(value).copy_to(ptr, std::experimental::element_aligned);
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(stdMultipliedSimdAbiPack_t & value, uint32_t const i){
-                return value[i];
-            }
-
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(stdMultipliedSimdAbiPack_t const& value, uint32_t const i){
-                return value[i];
+            template<typename T_Source, std::enable_if_t<std::is_same_v<stdMultipliedSimdAbiMask_t, std::decay_t<T_Source>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Source&& value, uint32_t const i){
+                return std::forward<T_Source>(value)[i];
             }
         };
     } // namespace trait
