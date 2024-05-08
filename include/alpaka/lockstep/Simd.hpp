@@ -201,6 +201,8 @@ namespace alpaka::lockstep
             static constexpr bool value = true;
         };
 
+
+
         template<uint32_t T_simdMult, typename T_Elem>
         struct PackTraits<simdBackendTags::StdSimdNTimesTag<T_simdMult>, std::experimental::simd<T_Elem, detail::stdMultipliedSimdAbi_t<T_Elem, T_simdMult>>>{
 
@@ -215,23 +217,23 @@ namespace alpaka::lockstep
 
             //broadcast
             template<typename T_From, std::enable_if_t<isTrivialPack_v<T_From>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(T_From&& elem){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) convert(T_From&& elem){
                 return stdMultipliedSimdAbiPack_t(static_cast<Elem_t>(std::forward<T_From>(elem)));
             }
 
             //elem-wise cast
-            template<typename T_From>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(std::experimental::simd<T_From, detail::stdMultipliedSimdAbi_t<T_From, T_simdMult>> const pack){
-                static_assert(laneCount == std::experimental::simd<T_From, detail::stdMultipliedSimdAbi_t<T_From, T_simdMult>>::size());
-                return std::experimental::static_simd_cast<Elem_t, T_From, detail::stdMultipliedSimdAbi_t<Elem_t, T_simdMult>>(pack);
+            template<typename T_From, std::enable_if_t<std::experimental::is_simd_v<std::decay_t<T_From>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) convert(T_From&& pack){
+                static_assert(laneCount == std::decay_t<T_From>::size());
+                return std::experimental::static_simd_cast<Elem_t, elemTOfPack_t<std::decay_t<T_From>>, detail::stdMultipliedSimdAbi_t<Elem_t, T_simdMult>>(std::forward<T_From>(pack));
             }
 
             //expand mask
-            template<typename T_From>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(std::experimental::simd_mask<T_From, detail::stdMultipliedSimdAbi_t<T_From, T_simdMult>> const mask){
-                static_assert(laneCount == std::experimental::simd_mask<T_From, detail::stdMultipliedSimdAbi_t<T_From, T_simdMult>>::size());
+            template<typename T_From, std::enable_if_t<std::experimental::is_simd_mask_v<std::decay_t<T_From>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) convert(T_From&& mask){
+                static_assert(laneCount == std::decay_t<T_From>::size());
                 stdMultipliedSimdAbiPack_t tmp(0);
-                std::experimental::where(mask, tmp) = stdMultipliedSimdAbiPack_t(1);
+                std::experimental::where(std::forward<T_From>(mask), tmp) = stdMultipliedSimdAbiPack_t(1);
                 return tmp;
             }
 
@@ -244,8 +246,9 @@ namespace alpaka::lockstep
                 return stdMultipliedSimdAbiPack_t{ptr, std::experimental::element_aligned};
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr void storeUnaligned(stdMultipliedSimdAbiPack_t const value, Elem_t * const ptr){
-                value.copy_to(ptr, std::experimental::element_aligned);
+            template<typename T_Source, std::enable_if_t<std::is_same_v<stdMultipliedSimdAbiPack_t, std::decay_t<T_Source>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr void storeUnaligned(T_Source&& value, Elem_t * const ptr){
+                std::forward<T_Source>(value).copy_to(ptr, std::experimental::element_aligned);
             }
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(stdMultipliedSimdAbiPack_t & value, uint32_t const i){
@@ -271,21 +274,21 @@ namespace alpaka::lockstep
 
             //brodacast
             template<typename T_From, std::enable_if_t<isTrivialPack_v<T_From>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(T_From&& elem){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) convert(T_From&& elem){
                 return stdMultipliedSimdAbiMask_t{elem!=0};
             }
 
             //elem-wise cast
-            template<typename T_From>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(std::experimental::simd<T_From, detail::stdMultipliedSimdAbi_t<T_From, T_simdMult>> const pack){
-                return pack != 0;
+            template<typename T_From, std::enable_if_t<std::experimental::is_simd_v<std::decay_t<T_From>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) convert(T_From&& pack){
+                return std::forward<T_From>(pack) != 0;
             }
 
             //mask->mask is trivial
-            template<typename T_From>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto convert(std::experimental::simd_mask<T_From, detail::stdMultipliedSimdAbi_t<T_From, T_simdMult>> const& mask){
-                static_assert(laneCount == std::experimental::simd_mask<T_From, detail::stdMultipliedSimdAbi_t<T_From, T_simdMult>>::size());
-                return mask;
+            template<typename T_From, std::enable_if_t<std::experimental::is_simd_mask_v<std::decay_t<T_From>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) convert(T_From&& mask){
+                static_assert(laneCount == std::decay_t<T_From>::size());
+                return std::forward<T_From>(mask);
             }
 
             template<typename T_Lambda>
@@ -294,12 +297,13 @@ namespace alpaka::lockstep
                 return stdMultipliedSimdAbiMask_t(std::forward<T_Lambda>(lambda));
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) loadUnaligned(Elem_t const * const ptr){
-                return stdMultipliedSimdAbiPack_t{ptr, std::experimental::element_aligned};
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) loadUnaligned(bool const * const ptr){
+                return stdMultipliedSimdAbiMask_t{ptr, std::experimental::element_aligned};
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr void storeUnaligned(stdMultipliedSimdAbiPack_t const value, Elem_t * const ptr){
-                value.copy_to(ptr, std::experimental::element_aligned);
+            template<typename T_Source, std::enable_if_t<std::is_same_v<stdMultipliedSimdAbiMask_t, std::decay_t<T_Source>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr void storeUnaligned(T_Source&& value, bool * const ptr){
+                std::forward<T_Source>(value).copy_to(ptr, std::experimental::element_aligned);
             }
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(stdMultipliedSimdAbiPack_t & value, uint32_t const i){
