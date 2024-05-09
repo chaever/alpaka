@@ -244,15 +244,18 @@ namespace alpaka::lockstep
             }\
         };
 
+
+
         BINARY_READONLY_OP_INCLUDE(Addition, +)
         BINARY_READONLY_OP_INCLUDE(Subtraction, -)
 
-        BINARY_READONLY_OP(Multiplication, *)
-        BINARY_READONLY_OP(Division, /)
-        BINARY_READONLY_OP(BitwiseAnd, &)
-        BINARY_READONLY_OP(BitwiseOr, |)
-        BINARY_READONLY_OP(And, &&)
-        BINARY_READONLY_OP(Or, ||)
+        BINARY_READONLY_OP_INCLUDE(Multiplication, *)
+        BINARY_READONLY_OP_INCLUDE(Division, /)
+        BINARY_READONLY_OP_INCLUDE(BitwiseAnd, &)
+        BINARY_READONLY_OP_INCLUDE(BitwiseOr, |)
+        BINARY_READONLY_OP_INCLUDE(And, &&)
+        BINARY_READONLY_OP_INCLUDE(Or, ||)
+
         BINARY_READONLY_OP(LessThen, <)
         BINARY_READONLY_OP(GreaterThen, >)
         BINARY_READONLY_OP(ShiftRight, >>)

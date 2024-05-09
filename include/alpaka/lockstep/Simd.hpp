@@ -198,8 +198,6 @@ namespace alpaka::lockstep
             static constexpr bool value = true;
         };
 
-
-
         template<uint32_t T_simdMult, typename T_Elem>
         struct PackTraits<simdBackendTags::StdSimdNTimesTag<T_simdMult>, std::experimental::simd<T_Elem, detail::stdMultipliedSimdAbi_t<T_Elem, T_simdMult>>>{
 
@@ -258,6 +256,7 @@ namespace alpaka::lockstep
         struct PackTraits<simdBackendTags::StdSimdNTimesTag<T_simdMult>, std::experimental::simd_mask<T_SizeIndicator, detail::stdMultipliedSimdAbi_t<T_SizeIndicator, T_simdMult>>>{
 
             static_assert(!std::is_reference_v<T_SizeIndicator>);
+            static_assert(!std::is_same_v<T_SizeIndicator, bool>);
 
             using stdMultipliedSimdAbiPack_t = std::experimental::simd<T_SizeIndicator, detail::stdMultipliedSimdAbi_t<T_SizeIndicator, T_simdMult>>;
             using stdMultipliedSimdAbiMask_t = std::experimental::simd_mask<T_SizeIndicator, detail::stdMultipliedSimdAbi_t<T_SizeIndicator, T_simdMult>>;
@@ -320,7 +319,7 @@ namespace alpaka::lockstep
         template<typename T_Left, typename T_Right>
         struct PackOperatorRequirements<T_Left, T_Right, true>{
             //cant have the same base type left & right, otherwise the operation is already defined
-            constexpr static bool value = !std::is_same_v<elemTOfPack_t<T_Left>, elemTOfPack_t<T_Right>>;
+            constexpr static bool value = !std::is_same_v<elemTOfPack_t<T_Left>, elemTOfPack_t<T_Right>> || std::is_same_v<elemTOfPack_t<T_Left>, bool>;
         };
 
         template<typename T_Left, typename T_Right>
@@ -332,13 +331,17 @@ namespace alpaka::lockstep
     template<typename T_Left, typename T_Right>
     constexpr bool packOperatorRequirements_v = trait::PackOperatorRequirements<std::decay_t<T_Left>, std::decay_t<T_Right>, trait::bothArePacksAndOneIsNonTrivial_v<std::decay_t<T_Left>, std::decay_t<T_Right>>>::value;
 
+    template<typename T_Left, typename T_Right, typename T_Result>
+    using packOperatorSizeInd_t = std::conditional_t<!std::is_same_v<bool, T_Result>, T_Result, std::conditional_t<!std::is_same_v<bool, sizeIndicatorTOfPack_t<T_Left> > , sizeIndicatorTOfPack_t<T_Left>, sizeIndicatorTOfPack_t<T_Right> > >;
+
 #define XPR_OP_WRAPPER() operator
 
 #define BINARY_READONLY_ARITHMETIC_OP(opName)\
     template<typename T_Left, typename T_Right, std::enable_if_t<packOperatorRequirements_v<T_Left, T_Right>, int> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) XPR_OP_WRAPPER()opName (T_Left&& left, T_Right&& right){\
         using result_elem_t = decltype(std::declval<elemTOfPack_t<std::decay_t<T_Left>>>() opName std::declval<elemTOfPack_t<std::decay_t<T_Right>>>());\
-        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, sizeIndicatorTOfPack_t<std::decay_t<T_Left>>, result_elem_t>;\
+        using result_sizeInd_t = packOperatorSizeInd_t<std::decay_t<T_Left>, std::decay_t<T_Right>, result_elem_t>;\
+        static_assert(!std::is_same_v<bool, result_sizeInd_t>);\
         using resultPackLeft_t = std::conditional_t<isTrivialPack_v<std::decay_t<T_Left>>, result_elem_t, Pack_t<result_elem_t, result_sizeInd_t>>;\
         using resultPackRight_t = std::conditional_t<isTrivialPack_v<std::decay_t<T_Right>>, result_elem_t, Pack_t<result_elem_t, result_sizeInd_t>>;\
         return convertPack<resultPackLeft_t>(std::forward<T_Left>(left)) opName convertPack<resultPackRight_t>(std::forward<T_Right>(right));\
@@ -359,7 +362,7 @@ namespace alpaka::lockstep
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) XPR_OP_WRAPPER()opName (T_Left&& left, T_Right&& right){\
         using result_elem_t = decltype(std::declval<elemTOfPack_t<std::decay_t<T_Left>>>() opName std::declval<elemTOfPack_t<std::decay_t<T_Right>>>());\
         using compare_elem_t = decltype(std::declval<elemTOfPack_t<std::decay_t<T_Left>>>() + std::declval<elemTOfPack_t<std::decay_t<T_Right>>>());\
-        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, sizeIndicatorTOfPack_t<std::decay_t<T_Left>>, result_elem_t>;\
+        using result_sizeInd_t = packOperatorSizeInd_t<std::decay_t<T_Left>, std::decay_t<T_Right>, result_elem_t>;\
         using comparePackLeft_t = std::conditional_t<isTrivialPack_v<std::decay_t<T_Left>>, compare_elem_t, Pack_t<compare_elem_t, result_sizeInd_t>>;\
         using comparePackRight_t = std::conditional_t<isTrivialPack_v<std::decay_t<T_Right>>, compare_elem_t, Pack_t<compare_elem_t, result_sizeInd_t>>;\
         return convertPack<comparePackLeft_t>(std::forward<T_Left>(left)) opName convertPack<comparePackRight_t>(std::forward<T_Right>(right));\
@@ -369,7 +372,7 @@ namespace alpaka::lockstep
     template<typename T_Left, typename T_Right, std::enable_if_t<packOperatorRequirements_v<T_Left, T_Right>, int> = 0>\
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) XPR_OP_WRAPPER()opName (T_Left&& left, T_Right&& right){\
         using result_elem_t = decltype(std::declval<elemTOfPack_t<std::decay_t<T_Left>>>() opName std::declval<elemTOfPack_t<std::decay_t<T_Right>>>());\
-        using result_sizeInd_t = std::conditional_t<std::is_same_v<bool, result_elem_t>, sizeIndicatorTOfPack_t<std::decay_t<T_Left>>, result_elem_t>;\
+        using result_sizeInd_t = packOperatorSizeInd_t<std::decay_t<T_Left>, std::decay_t<T_Right>, result_elem_t>;\
         using resultPackLeft_t = std::conditional_t<isTrivialPack_v<std::decay_t<T_Left>>, result_elem_t, Pack_t<result_elem_t, result_sizeInd_t>>;\
         using resultPackRight_t = std::conditional_t<isTrivialPack_v<std::decay_t<T_Right>>, std::decay_t<T_Right>, Pack_t<result_elem_t, result_sizeInd_t>>;\
         return convertPack<resultPackLeft_t>(std::forward<T_Left>(left)) opName convertPack<resultPackRight_t>(std::forward<T_Right>(right));\
@@ -395,10 +398,8 @@ namespace alpaka::lockstep
         return fName(std::forward<T_Pack>(pack));\
     }
 
-    //BINARY_READONLY_ARITHMETIC_OP(+)
-    //BINARY_READONLY_ARITHMETIC_OP(-)
-    BINARY_READONLY_ARITHMETIC_OP_NO_NAMESPACE(+)
-    BINARY_READONLY_ARITHMETIC_OP_NO_NAMESPACE(-)
+    BINARY_READONLY_ARITHMETIC_OP(+)
+    BINARY_READONLY_ARITHMETIC_OP(-)
     BINARY_READONLY_ARITHMETIC_OP(*)
     BINARY_READONLY_ARITHMETIC_OP(/)
     BINARY_READONLY_ARITHMETIC_OP(&)
@@ -419,6 +420,17 @@ namespace alpaka::lockstep
     //BINARY_READONLY_SHIFT_OP(<<)
 
 } // namespace alpaka::lockstep
+
+using alpaka::lockstep::operator+;
+using alpaka::lockstep::operator-;
+using alpaka::lockstep::operator*;
+using alpaka::lockstep::operator/;
+using alpaka::lockstep::operator&;
+using alpaka::lockstep::operator&&;
+using alpaka::lockstep::operator|;
+using alpaka::lockstep::operator||;
+using alpaka::lockstep::operator>;
+using alpaka::lockstep::operator<;
 
     //UNARY_FREE_FUNCTION(std::abs)
 

@@ -8,90 +8,30 @@ namespace std::experimental
 {
     //specific for std::simd, allows addition of Pack<T> and Pack<T>::mask which is not normally possible
     //should still be findable through ADL
-    template<typename T_Elem_Left, typename T_Elem_Right, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::experimental::simd<T_Elem_Left, T_Abi> operator+(std::experimental::simd<T_Elem_Left, T_Abi> const& left, std::experimental::simd_mask<T_Elem_Right, T_Abi> const& right)
+
+    //for some reason, uint + pack<uint>  or  char * pack<char> is defined, but   bool && pack<bool>(aka mask) is missing
+    template<typename T_Left, std::enable_if_t<std::experimental::is_simd_mask_v<std::decay_t<T_Left>>, int> = 0>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator&&(T_Left&& left, bool const right)
     {
-        using Pack = std::experimental::simd<T_Elem_Left, T_Abi>;
-        Pack tmp(left);
-        std::experimental::where(right, tmp) += Pack(1);
-        return tmp;
+        return std::decay_t<T_Left>(right) && std::forward<T_Left>(left);
     }
 
-    template<typename T_Elem_Left, typename T_Elem_Right, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::experimental::simd<T_Elem_Left, T_Abi> operator-(std::experimental::simd<T_Elem_Left, T_Abi> const& left, std::experimental::simd_mask<T_Elem_Right, T_Abi> const& right)
-    {
-        using Pack = std::experimental::simd<T_Elem_Left, T_Abi>;
-        Pack tmp(left);
-        std::experimental::where(right, tmp) -= Pack(1);
-        return tmp;
-    }
-
-    template<typename T_Elem_Left, typename T_Elem_Right, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::experimental::simd<T_Elem_Left, T_Abi> operator*(std::experimental::simd<T_Elem_Left, T_Abi> const& left, std::experimental::simd_mask<T_Elem_Right, T_Abi> const& right)
-    {
-        using Pack = std::experimental::simd<T_Elem_Left, T_Abi>;
-        Pack tmp(left);
-        std::experimental::where(!right, tmp) = Pack(0);
-        return tmp;
-    }
-
-    template<typename T_Elem_Left, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::experimental::simd_mask<T_Elem_Left, T_Abi> operator&&(std::experimental::simd_mask<T_Elem_Left, T_Abi> const& left, bool const& right)
-    {
-        std::experimental::simd_mask<T_Elem_Left, T_Abi> tmp(right);
-        return tmp && left;
-    }
-
-    template<typename T_Elem, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::experimental::simd<T_Elem, T_Abi> operator+(std::experimental::simd<T_Elem, T_Abi> const& left, T_Elem const& right)
-    {
-        return left + std::experimental::simd<T_Elem, T_Abi>(right);
-    }
-
-    template<typename T_Elem_Left, typename T_Elem_Right, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator+(std::experimental::simd_mask<T_Elem_Left, T_Abi> const& left, std::experimental::simd<T_Elem_Right, T_Abi> const& right)
+    template<typename T_Right, std::enable_if_t<std::experimental::is_simd_mask_v<std::decay_t<T_Right>>, int> = 0>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator&&(bool const left, T_Right&& right)
     {
         //re-use other operator definition
-        return right+left;
-    }
-
-    template<typename T_Elem_Left, typename T_Elem_Right, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator-(std::experimental::simd_mask<T_Elem_Left, T_Abi> const& left, std::experimental::simd<T_Elem_Right, T_Abi> const& right)
-    {
-        //re-use other operator definition
-        return right-left;
-    }
-
-    template<typename T_Elem_Left, typename T_Elem_Right, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator*(std::experimental::simd_mask<T_Elem_Left, T_Abi> const& left, std::experimental::simd<T_Elem_Right, T_Abi> const& right)
-    {
-        //re-use other operator definition
-        return right*left;
-    }
-
-    template<typename T_Elem_Left, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto operator&&(bool const& left, std::experimental::simd_mask<T_Elem_Left, T_Abi> const& right)
-    {
-        //re-use other operator definition
-        return right&&left;
-    }
-
-    template<typename T_Elem, typename T_Abi>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::experimental::simd<T_Elem, T_Abi> operator+(T_Elem const& left, std::experimental::simd<T_Elem, T_Abi> const& right)
-    {
-        //re-use other operator definition
-        return right+left;
+        return std::forward<T_Right>(right) && left;
     }
 }
 
 //std::abs for floating-point-based simd-packs (currently not supported by default)
-template <typename T_Elem, typename T_Abi>
-ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr std::experimental::simd<T_Elem, T_Abi> std::abs(const std::experimental::simd<T_Elem, T_Abi>& floatPack)
+template <typename T_Pack, std::enable_if_t<std::experimental::is_simd_v<std::decay_t<T_Pack>>, int> = 0>
+ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) std::abs(T_Pack&& floatPack)
 {
+    using Pack = std::decay_t<T_Pack>;
     //if we are dealing with unsigned values we are extremely likely to overflow which violates the assumption that abs will always be positive
-    static_assert(std::is_signed_v<T_Elem>);
-    using Pack = std::experimental::simd<T_Elem, T_Abi>;
-    Pack tmp{floatPack};
-    std::experimental::where(floatPack < 0, tmp) = Pack(-1) * floatPack;
+    static_assert(std::is_signed_v<typename Pack::value_type>);
+    Pack tmp{std::forward<T_Pack>(floatPack)};
+    std::experimental::where(std::forward<T_Pack>(floatPack) < 0, tmp) *= Pack(-1);
     return tmp;
 }
