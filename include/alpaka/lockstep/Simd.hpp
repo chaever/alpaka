@@ -154,7 +154,7 @@ namespace alpaka::lockstep
 
             template<typename T_Source, std::enable_if_t<std::is_same_v<T_Pack, std::decay_t<T_Source>>, int> = 0>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) getElemAt(T_Source&& value, uint32_t const){
-                return value;
+                return std::forward<T_Source>(value);
             }
         };
     }
