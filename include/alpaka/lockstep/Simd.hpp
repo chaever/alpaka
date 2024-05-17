@@ -85,19 +85,10 @@ namespace alpaka::lockstep
         return trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, std::decay_t<T_Pack>>::getElemAt(pack, i);
     }
 
-    template<typename T_Dest, typename T_Source, typename T_BoolOrMask>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) conditionalAssign(T_Dest&& dest, T_Source&& source, T_BoolOrMask&& select){
-        return trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, std::decay_t<T_Dest>>::elemWiseConditionalAssign(std::forward<T_Dest>(dest), std::forward<T_Source>(source), std::forward<T_BoolOrMask>(select));
-    }
-
-    template<typename T_Dest, typename T_Source, typename T_BoolOrMask>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) conditionalIncrement(T_Dest&& dest, T_Source&& source, T_BoolOrMask&& select){
-        return trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, std::decay_t<T_Dest>>::elemWiseConditionalIncrement(std::forward<T_Dest>(dest), std::forward<T_Source>(source), std::forward<T_BoolOrMask>(select));
-    }
-
-    template<typename T_Dest, typename T_Source, typename T_BoolOrMask>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) conditionalDecrement(T_Dest&& dest, T_Source&& source, T_BoolOrMask&& select){
-        return trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, std::decay_t<T_Dest>>::elemWiseConditionalDecrement(std::forward<T_Dest>(dest), std::forward<T_Source>(source), std::forward<T_BoolOrMask>(select));
+    template<typename T_Dest, typename T_BoolOrMask>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) conditionalAssignable(T_Dest& dest, T_BoolOrMask const& select){
+        static_assert(!std::is_const_v<T_Dest>);
+        return trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, std::decay_t<T_Dest>>::elemWiseConditionalAssignable(dest, select);
     }
 
     template<typename T_Lambda>
@@ -130,6 +121,37 @@ namespace alpaka::lockstep
         struct IsPack{
             static_assert(!std::is_reference_v<T_Type>);
             static constexpr bool value = isTrivialPack_v<T_Type>;
+        };
+
+        template<typename T_Dest>
+        struct ConditionallyAssignableReference{
+            T_Dest & dest;
+            const bool dontIgnoreAssignmnet;
+
+            template<typename T>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void operator= (T&& value) {
+                if(dontIgnoreAssignmnet)
+                {
+                    dest = std::forward<T>(value);
+                }
+            }
+
+#define ASSIGN_OP(op)\
+            template<typename T>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void operator op (T&& value) {\
+                if(dontIgnoreAssignmnet)\
+                {\
+                    dest op std::forward<T>(value);\
+                }\
+            }
+
+            ASSIGN_OP(+=)
+            ASSIGN_OP(-=)
+            ASSIGN_OP(*=)
+            ASSIGN_OP(/=)
+            ASSIGN_OP(%=)
+
+#undef ASSIGN_OP
         };
 
         //fallback definition, compiles only for trivial packs
@@ -172,28 +194,10 @@ namespace alpaka::lockstep
                 return std::forward<T_Source>(value);
             }
 
-            template<typename T_Dest, typename T_Source, std::enable_if_t<isPack_v<std::decay_t<T_Source>>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalAssign(T_Dest&& dest, T_Source&& source, bool const select){
-                if(select){
-                    std::forward<T_Dest>(dest) = std::forward<T_Source>(source);
-                }
-                return std::forward<T_Dest>(dest);
-            }
-
-            template<typename T_Dest, typename T_Source, std::enable_if_t<isPack_v<std::decay_t<T_Source>>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalIncrement(T_Dest&& dest, T_Source&& source, bool const select){
-                if(select){
-                    std::forward<T_Dest>(dest) += std::forward<T_Source>(source);
-                }
-                return std::forward<T_Dest>(dest);
-            }
-
-            template<typename T_Dest, typename T_Source, std::enable_if_t<isPack_v<std::decay_t<T_Source>>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalDecrement(T_Dest&& dest, T_Source&& source, bool const select){
-                if(select){
-                    std::forward<T_Dest>(dest) -= std::forward<T_Source>(source);
-                }
-                return std::forward<T_Dest>(dest);
+            template<typename T_Dest>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalAssignable(T_Dest& dest, bool const select){
+                static_assert(!std::is_const_v<T_Dest>);
+                return ConditionallyAssignableReference(dest, select);
             }
         };
     }
@@ -290,28 +294,10 @@ namespace alpaka::lockstep
                 return std::forward<T_Source>(value)[i];
             }
 
-            template<typename T_Dest, typename T_Source, std::enable_if_t<isPack_v<std::decay_t<T_Dest>> && isPack_v<std::decay_t<T_Source>>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalAssign(T_Dest&& dest, T_Source&& source, stdMultipliedSimdAbiMask_t const select){
-                using dest_t = std::decay_t<T_Dest>;
-                dest_t tmp = std::forward<T_Dest>(dest);
-                std::experimental::where(select, tmp) = dest_t(std::forward<T_Source>(source));
-                return tmp;
-            }
-
-            template<typename T_Dest, typename T_Source, std::enable_if_t<isPack_v<std::decay_t<T_Dest>> && isPack_v<std::decay_t<T_Source>>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalIncrement(T_Dest&& dest, T_Source&& source, stdMultipliedSimdAbiMask_t const select){
-                using dest_t = std::decay_t<T_Dest>;
-                dest_t tmp = std::forward<T_Dest>(dest);
-                std::experimental::where(select, tmp) += dest_t(std::forward<T_Source>(source));
-                return tmp;
-            }
-
-            template<typename T_Dest, typename T_Source, std::enable_if_t<isPack_v<std::decay_t<T_Dest>> && isPack_v<std::decay_t<T_Source>>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalDecrement(T_Dest&& dest, T_Source&& source, stdMultipliedSimdAbiMask_t const select){
-                using dest_t = std::decay_t<T_Dest>;
-                dest_t tmp = std::forward<T_Dest>(dest);
-                std::experimental::where(select, tmp) -= dest_t(std::forward<T_Source>(source));
-                return tmp;
+            template<typename T_Dest, typename T_Mask, std::enable_if_t<isPack_v<std::decay_t<T_Dest>>, int> = 0>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalAssignable(T_Dest& dest, T_Mask const& select){
+                static_assert(!std::is_const_v<T_Dest>);
+                return std::experimental::where(select, dest);
             }
         };
 
@@ -527,19 +513,44 @@ namespace alpaka::lockstep
         using pack_elem_t = std::conditional_t<leftIsMask, rightElem_t, leftElem_t>;
         static_assert(!std::is_same_v<bool, std::decay_t<pack_elem_t>>);
         /*swap operands if needed*/
-        return conditionalIncrement(
-            trait::ConditionallyReverse<leftIsMask>::getFirst(std::forward<T_Left>(left), std::forward<T_Right>(right)),
-            static_cast<pack_elem_t>(1),
-            trait::ConditionallyReverse<leftIsMask>::getSecond(std::forward<T_Left>(left), std::forward<T_Right>(right)));
+        auto pack = trait::ConditionallyReverse<leftIsMask>::getFirst(std::forward<T_Left>(left), std::forward<T_Right>(right));
+        conditionalAssignable(pack, trait::ConditionallyReverse<leftIsMask>::getSecond(std::forward<T_Left>(left), std::forward<T_Right>(right))) += static_cast<pack_elem_t>(1);
+
+        //std::cout << "operator+ (" << (leftIsMask?"mask, pack":"pack, mask") << ")" << std::endl;
+
+        return pack;
     }
 
     template<typename T_Left, typename T_Right, std::enable_if_t<packOperatorRequirements_v<T_Left, T_Right> && (!isMask_v<T_Left> && isMask_v<T_Right>), int> = 0>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator- (T_Left&& left, T_Right&& right){
         using leftElem_t = elemTOfPack_t<std::decay_t<T_Left>>;
-        return conditionalDecrement(
-            std::forward<T_Left>(left),
-            static_cast<leftElem_t>(1),
-            std::forward<T_Right>(right));
+        auto pack = std::forward<T_Left>(left);
+
+        auto packBeforeSub = pack;
+
+        auto maskCopy = std::forward<T_Right>(right);
+
+        std::cout << "operator-  :address of pack is" << reinterpret_cast<uint64_t>(&pack) << std::endl;
+        conditionalAssignable(pack, maskCopy) -= static_cast<leftElem_t>(1);
+
+        std::experimental::where(maskCopy, packBeforeSub) -= static_cast<leftElem_t>(1);
+
+        const bool match = std::experimental::all_of(packBeforeSub==pack);
+        if(!match){
+            std::cout << "mismatch in operator-\ncorrect:    [";
+            for(auto i=0u;i<laneCount_v<std::decay_t<T_Left>>;++i){
+                std::cout<<packBeforeSub[i]<<" ";
+            }
+            std::cout << "]\ncalculated: [";
+            for(auto i=0u;i<laneCount_v<std::decay_t<T_Left>>;++i){
+                std::cout<<pack[i]<<" ";
+            }
+            std::cout << "]"<<std::endl;
+
+            throw std::invalid_argument( "operator- was faulty" );
+        }
+
+        return pack;
     }
 
     template<typename T_Left, typename T_Right, std::enable_if_t<packOperatorRequirements_v<T_Left, T_Right> && (isMask_v<T_Left> ^ isMask_v<T_Right>), int> = 0>
@@ -549,12 +560,35 @@ namespace alpaka::lockstep
         constexpr bool leftIsMask = std::is_same_v<bool, std::decay_t<leftElem_t>>;
         using pack_elem_t = std::conditional_t<leftIsMask, rightElem_t, leftElem_t>;
         static_assert(!std::is_same_v<bool, std::decay_t<pack_elem_t>>);
+
         /*swap operands if needed*/
+        auto pack = trait::ConditionallyReverse<leftIsMask>::getFirst(std::forward<T_Left>(left), std::forward<T_Right>(right));
+
+        auto packBeforeMul = pack;
+
         /*assign 0 whereever the mask is false*/
-        return conditionalAssign(
-            trait::ConditionallyReverse<leftIsMask>::getFirst(std::forward<T_Left>(left), std::forward<T_Right>(right)),
-            static_cast<pack_elem_t>(0),
-            ! trait::ConditionallyReverse<leftIsMask>::getSecond(std::forward<T_Left>(left), std::forward<T_Right>(right)));
+        conditionalAssignable(pack, !trait::ConditionallyReverse<leftIsMask>::getSecond(std::forward<T_Left>(left), std::forward<T_Right>(right))) = static_cast<pack_elem_t>(0);
+
+        std::experimental::where(!trait::ConditionallyReverse<leftIsMask>::getSecond(std::forward<T_Left>(left), std::forward<T_Right>(right)), packBeforeMul) = static_cast<pack_elem_t>(0);
+
+
+        const bool match = std::experimental::all_of(packBeforeMul==pack);
+        if(!match){
+            std::cout << "mismatch in operator*\ncorrect:    [";
+            for(auto i=0u;i<laneCount_v<std::decay_t<T_Left>>;++i){
+                std::cout<<packBeforeMul[i]<<" ";
+            }
+            std::cout << "]\ncalculated: [";
+            for(auto i=0u;i<laneCount_v<std::decay_t<T_Left>>;++i){
+                std::cout<<pack[i]<<" ";
+            }
+            std::cout << "]"<<std::endl;
+
+            throw std::invalid_argument( "operator* was faulty" );
+        }
+
+
+        return pack;
     }
 
     BINARY_READONLY_ARITHMETIC_OP_MASK_EXCLUDED(+)
