@@ -201,7 +201,23 @@ namespace alpaka::lockstep
                 return ConditionallyAssignableReference(dest, select);
             }
         };
-    }
+
+        template<typename T_Pack, bool T_IsPack>
+        struct IsMask;
+
+        template<typename T_Pack>
+        struct IsMask<T_Pack, false>{
+            constexpr static bool value = false;
+        };
+
+        template<typename T_Pack>
+        struct IsMask<T_Pack, true>{
+            constexpr static bool value = std::is_same_v<bool, elemTOfPack_t<std::decay_t<T_Pack> > >;
+        };
+    } // namespace trait
+
+    template<typename T_Pack>
+    constexpr bool isMask_v = trait::IsMask<std::decay_t<T_Pack>, isPack_v<std::decay_t<T_Pack>> >::value;
 
 #if ALPAKA_USE_STD_SIMD
 
@@ -299,18 +315,17 @@ namespace alpaka::lockstep
             template<typename T_Mask>
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto elemWiseConditionalAssignable(stdMultipliedSimdAbiPack_t & dest, T_Mask const& select){
 #if 1
+                static_assert(isMask_v<T_Mask>);
                 auto forReturn = std::experimental::where(select, dest);
                 std::cout << "trait::elemWiseConditionalAssignable  :address of pack is " << reinterpret_cast<uint64_t>(&dest) << std::endl;
                 std::cout << "trait::elemWiseConditionalAssignable  :address of mask is " << reinterpret_cast<uint64_t>(&select) << std::endl;
-                std::cout << "trait::elemWiseConditionalAssignable  :where object bytewise ";
+                std::cout << "trait::elemWiseConditionalAssignable  :where object bytewise      ";
                 for(auto i=0u;i<sizeof(std::decay_t<decltype(forReturn)>);++i){
                     std::cout << std::setw(4) << static_cast<uint32_t>(reinterpret_cast<char*>(&forReturn)[i]) << " ";
                 }
                 std::cout<< std::endl;
-                return std::experimental::where(select, dest);
-#else
-                return std::experimental::where(select, dest);
 #endif
+                return std::experimental::where(select, dest);
             }
         };
 
@@ -416,19 +431,6 @@ namespace alpaka::lockstep
             }
         };
 
-        template<typename T_Pack, bool T_IsPack>
-        struct IsMask;
-
-        template<typename T_Pack>
-        struct IsMask<T_Pack, false>{
-            constexpr static bool value = false;
-        };
-
-        template<typename T_Pack>
-        struct IsMask<T_Pack, true>{
-            constexpr static bool value = std::is_same_v<bool, elemTOfPack_t<std::decay_t<T_Pack> > >;
-        };
-
     } // namespace trait
 
     template<typename T_Left, typename T_Right>
@@ -439,10 +441,6 @@ namespace alpaka::lockstep
 
     template<typename T_Left, typename T_Right>
     constexpr bool hasExactlyOneMask_v = std::is_same_v<bool, elemTOfPack_t<std::decay_t<T_Left> > > ^ std::is_same_v<bool, elemTOfPack_t<std::decay_t<T_Right> > >;
-
-
-    template<typename T_Pack>
-    constexpr bool isMask_v = trait::IsMask<std::decay_t<T_Pack>, isPack_v<std::decay_t<T_Pack>> >::value;
 
 #define XPR_OP_WRAPPER() operator
 
@@ -550,16 +548,18 @@ namespace alpaka::lockstep
         std::cout << "operator-  :address of pack is " << reinterpret_cast<uint64_t>(&pack) << std::endl;
         std::cout << "operator-  :address of mask is " << reinterpret_cast<uint64_t>(&maskCopy) << std::endl;
         decltype(auto) where2 = conditionalAssignable(pack, maskCopy);
-        std::cout << "operator-  :where from trait bytewise ";
+        std::cout << "operator-                             :where from trait bytewise  ";
         for(auto i=0u;i<sizeof(std::decay_t<decltype(where2)>);++i){
             std::cout << std::setw(4) << static_cast<uint32_t>(reinterpret_cast<char*>(&where2)[i]) << " ";
         }
         decltype(auto) where1 = std::experimental::where(maskCopy, pack);
-        std::cout << "\noperator-  :direct std::where bytewise ";
+        std::cout << "\noperator-                             :direct std::where bytewise ";
         for(auto i=0u;i<sizeof(std::decay_t<decltype(where1)>);++i){
             std::cout << std::setw(4) << static_cast<uint32_t>(reinterpret_cast<char*>(&where1)[i]) << " ";
         }
         std::cout << "\n<<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;
+
+        static_assert(std::is_same_v<std::decay_t<decltype(where1)>, std::decay_t<decltype(where2)>>);
 
         conditionalAssignable(pack, maskCopy) -= static_cast<leftElem_t>(1);
 
