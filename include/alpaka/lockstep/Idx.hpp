@@ -56,7 +56,7 @@ namespace alpaka
                 return domElemIdx;
             }
 
-            template<typename T_Type, typename T_Config>
+            template<typename T_Type, typename T_Config, typename T_SizeInd>
             friend struct Variable;
 
         private:

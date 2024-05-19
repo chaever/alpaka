@@ -24,7 +24,7 @@
 #include "alpaka/lockstep/Config.hpp"
 #include "alpaka/lockstep/Idx.hpp"
 #include "alpaka/lockstep/DeviceCapableArray.hpp"
-
+#include "alpaka/lockstep/Simd.hpp"
 
 #include <type_traits>
 #include <utility>
@@ -47,18 +47,18 @@ namespace alpaka
          * Data stored in a context variable should only be used with a lockstep
          * programming construct e.g. lockstep::ForEach<>
          */
-        template<typename T_Type, typename T_Config>
+        template<typename T_Type, typename T_Config, typename T_SizeInd = T_Type>
         struct Variable
-            : protected lockstep::DeviceCapableArray<T_Type, T_Config::maxIndicesPerWorker>
+            : protected lockstep::DeviceCapableArray<Pack_t<T_Type, T_SizeInd>, alpaka::core::divCeil(T_Config::domainSize, T_Config::numWorkers)>
             , T_Config
         {
             using T_Config::domainSize;
             using T_Config::numWorkers;
             using T_Config::simdSize;
 
-            using BaseArray = lockstep::DeviceCapableArray<T_Type, T_Config::maxIndicesPerWorker>;
+            using BaseArray = lockstep::DeviceCapableArray<Pack_t<T_Type, T_SizeInd>, alpaka::core::divCeil(T_Config::domainSize, T_Config::numWorkers)>;
 
-            using BaseArray::value_type;
+            using value_type = elemTOfPack_t<BaseArray::value_type>;
 
             /** default constructor
              *
@@ -94,14 +94,16 @@ namespace alpaka
              *
              * @{
              */
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::const_reference operator[](Idx const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename value_type const& operator[](Idx const idx) const
             {
-                return BaseArray::operator[](idx.getWorkerElemIdx());
+                constexpr auto laneCount = laneCount_v<BaseArray::value_type>;
+                return getElem(BaseArray::operator[](idx.getWorkerElemIdx()/laneCount), idx.getWorkerElemIdx()%laneCount);
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename BaseArray::reference operator[](Idx const idx)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename value_type & operator[](Idx const idx)
             {
-                return BaseArray::operator[](idx.getWorkerElemIdx());
+                constexpr auto laneCount = laneCount_v<BaseArray::value_type>;
+                return getElem(BaseArray::operator[](idx.getWorkerElemIdx()/laneCount), idx.getWorkerElemIdx()%laneCount);
             }
             /** @} */
         };
