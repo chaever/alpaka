@@ -22,7 +22,6 @@
 #pragma once
 
 #include "Simd.hpp"
-#include "ExpressionTemplates.hpp"
 
 namespace alpaka
 {

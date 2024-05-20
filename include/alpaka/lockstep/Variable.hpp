@@ -104,25 +104,6 @@ namespace alpaka
                 return BaseArray::operator[](idx.getWorkerElemIdx());
             }
             /** @} */
-
-            template<typename T_Foreach, typename T_Elem, uint32_t T_dimensions, uint32_t T_stride>
-            friend class expr::ReadLeafXpr;
-
-            template<typename T_Foreach, typename T_Elem, uint32_t T_dimensions, uint32_t T_stride>
-            friend class expr::WriteLeafXpr;
-
-        private:
-            template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto& operator[](T_Idx const idx)
-            {
-                return BaseArray::data()[idx];
-            }
-            template<typename T_Idx, std::enable_if_t<std::is_integral_v<T_Idx>, int> = 0>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto const& operator[](T_Idx const idx) const
-            {
-                return BaseArray::data()[idx];
-            }
-
         };
 
         /** Creates a variable usable within a lockstep step
