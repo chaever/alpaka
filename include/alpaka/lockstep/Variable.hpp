@@ -58,7 +58,7 @@ namespace alpaka
 
             using BaseArray = lockstep::DeviceCapableArray<Pack_t<T_Type, T_SizeInd>, alpaka::core::divCeil(T_Config::domainSize, T_Config::numWorkers)>;
 
-            using value_type = elemTOfPack_t<BaseArray::value_type>;
+            using value_type = elemTOfPack_t<typename BaseArray::value_type>;
 
             /** default constructor
              *
@@ -94,15 +94,15 @@ namespace alpaka
              *
              * @{
              */
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename value_type const& operator[](Idx const idx) const
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE value_type const& operator[](Idx const idx) const
             {
-                constexpr auto laneCount = laneCount_v<BaseArray::value_type>;
+                constexpr auto laneCount = laneCount_v<typename BaseArray::value_type>;
                 return getElem(BaseArray::operator[](idx.getWorkerElemIdx()/laneCount), idx.getWorkerElemIdx()%laneCount);
             }
 
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE typename value_type & operator[](Idx const idx)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE value_type & operator[](Idx const idx)
             {
-                constexpr auto laneCount = laneCount_v<BaseArray::value_type>;
+                constexpr auto laneCount = laneCount_v<typename BaseArray::value_type>;
                 return getElem(BaseArray::operator[](idx.getWorkerElemIdx()/laneCount), idx.getWorkerElemIdx()%laneCount);
             }
             /** @} */
