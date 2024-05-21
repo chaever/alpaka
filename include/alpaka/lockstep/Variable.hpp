@@ -49,16 +49,21 @@ namespace alpaka
          */
         template<typename T_Type, typename T_Config, typename T_SizeInd = T_Type>
         struct Variable
-            : protected lockstep::DeviceCapableArray<Pack_t<T_Type, T_SizeInd>, alpaka::core::divCeil(T_Config::domainSize, T_Config::numWorkers)>
+            : protected lockstep::DeviceCapableArray<Pack_t<T_Type, T_SizeInd>, alpaka::core::divCeil(T_Config::domainSize, T_Config::numWorkers * laneCount_v<Pack_t<T_Type, T_SizeInd>>)>
             , T_Config
         {
             using T_Config::domainSize;
             using T_Config::numWorkers;
             using T_Config::simdSize;
 
-            using BaseArray = lockstep::DeviceCapableArray<Pack_t<T_Type, T_SizeInd>, alpaka::core::divCeil(T_Config::domainSize, T_Config::numWorkers)>;
+            //in simd packs
+            constexpr static auto numSimdPacks = alpaka::core::divCeil(T_Config::domainSize, T_Config::numWorkers * laneCount_v<Pack_t<T_Type, T_SizeInd>>);
 
-            using value_type = elemTOfPack_t<typename BaseArray::value_type>;
+            using BaseArray = lockstep::DeviceCapableArray<Pack_t<T_Type, T_SizeInd>, numSimdPacks>;
+
+            using pack_t = typename BaseArray::value_type;
+
+            using value_type = elemTOfPack_t<pack_t>;
 
             /** default constructor
              *
@@ -96,17 +101,153 @@ namespace alpaka
              */
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE value_type const& operator[](Idx const idx) const
             {
-                constexpr auto laneCount = laneCount_v<typename BaseArray::value_type>;
+                constexpr auto laneCount = laneCount_v<pack_t>;
                 return getElem(BaseArray::operator[](idx.getWorkerElemIdx()/laneCount), idx.getWorkerElemIdx()%laneCount);
             }
 
             ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE value_type & operator[](Idx const idx)
             {
-                constexpr auto laneCount = laneCount_v<typename BaseArray::value_type>;
+                constexpr auto laneCount = laneCount_v<pack_t>;
                 return getElem(BaseArray::operator[](idx.getWorkerElemIdx()/laneCount), idx.getWorkerElemIdx()%laneCount);
             }
             /** @} */
-        };
+
+            //const access to packs
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE pack_t const& packAt(uint32_t const idx) const
+            {
+                return BaseArray::operator[](idx);
+            }
+
+            //non-const access to packs
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE pack_t& packAt(uint32_t const idx)
+            {
+                return BaseArray::operator[](idx);
+            }
+
+#define OPERATOR() operator
+#define OPERATOR_DEF_VAR_ASSIGN(op)\
+            /*var op var*/\
+            template<typename T_Other_Type, typename T_Other_SizeInd>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto OPERATOR()op (Variable<T_Other_Type, T_Config, T_Other_SizeInd> const other){\
+                static_assert(laneCount_v<pack_t> == laneCount_v<typename Variable<T_Other_Type, T_Config, T_Other_SizeInd>::pack_t>);\
+                for(auto i=0u; i<numSimdPacks; ++i){\
+                    packAt(i) op other.packAt(i);\
+                }\
+            }\
+            /*var op scalar*/\
+            template<typename T_Other_Type>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto OPERATOR()op (T_Other_Type const other){\
+                static_assert(std::is_arithmetic_v<std::decay_t<T_Other_Type>>);\
+                for(auto i=0u; i<numSimdPacks; ++i){\
+                    packAt(i) op other;\
+                }\
+            }
+
+            OPERATOR_DEF_VAR_ASSIGN(=)
+            OPERATOR_DEF_VAR_ASSIGN(+=)
+            OPERATOR_DEF_VAR_ASSIGN(-=)
+
+        }; // Variable struct
+
+#define OPERATOR_DEF_VAR_BINARY(op)\
+        /*var op var*/\
+        template<typename T_Type_Left, typename T_SizeInd_Left, typename T_Config, typename T_Type_Right, typename T_SizeInd_Right>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto OPERATOR()op (Variable<T_Type_Left, T_Config, T_SizeInd_Left> const left, Variable<T_Type_Right, T_Config, T_SizeInd_Right> const right){\
+            using result_elem_t = decltype(std::declval<T_Type_Left> op std::declval<T_Type_Right>);\
+            using left_t = std::decay_t<decltype(left)>;\
+            using right_t = std::decay_t<decltype(right)>;\
+            using size_indicator_t = alpaka::lockstep::packOperatorSizeInd_t<std::decay_t<typename left_t::pack_t>, std::decay_t<typename right_t::pack_t>, result_elem_t>;\
+            static_assert(!std::is_same_v<bool, size_indicator_t>);\
+            /*make sure that elemCount of packs matches*/\
+            static_assert(laneCount_v<typename left_t::pack_t> == laneCount_v<typename right_t::pack_t>);\
+            Variable<result_elem_t, T_Config, size_indicator_t> tmp;\
+            for(auto i=0u; i<left_t::numSimdPacks; ++i){\
+                tmp.packAt(i) = left.packAt(i) op right.packAt(i);\
+            }\
+            return tmp;\
+        }\
+        /*var op scalar*/\
+        template<typename T_Type_Left, typename T_SizeInd_Left, typename T_Config, typename T_Type_Right>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto OPERATOR()op (Variable<T_Type_Left, T_Config, T_SizeInd_Left> const left, T_Type_Right const right){\
+            static_assert(std::is_arithmetic_v<std::decay_t<T_Type_Right>>);\
+            using result_elem_t = decltype(std::declval<T_Type_Left> op std::declval<T_Type_Right>);\
+            using left_t = std::decay_t<decltype(left)>;\
+            using size_indicator_t = alpaka::lockstep::packOperatorSizeInd_t<std::decay_t<typename left_t::pack_t>, std::decay_t<T_Type_Right>, result_elem_t>;\
+            static_assert(!std::is_same_v<bool, size_indicator_t>);\
+            Variable<result_elem_t, T_Config, size_indicator_t> tmp;\
+            for(auto i=0u; i<left_t::numSimdPacks; ++i){\
+                tmp.packAt(i) = left.packAt(i) op right;\
+            }\
+            return tmp;\
+        }\
+        /*scalar op var*/\
+        template<typename T_Type_Left, typename T_Type_Right, typename T_Config, typename T_SizeInd_Right>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto OPERATOR()op (T_Type_Left const left, Variable<T_Type_Right, T_Config, T_SizeInd_Right> const right){\
+            static_assert(std::is_arithmetic_v<std::decay_t<T_Type_Left>>);\
+            using result_elem_t = decltype(std::declval<T_Type_Left> op std::declval<T_Type_Right>);\
+            using right_t = std::decay_t<decltype(right)>;\
+            using size_indicator_t = alpaka::lockstep::packOperatorSizeInd_t<std::decay_t<T_Type_Left>, std::decay_t<typename right_t::pack_t>, result_elem_t>;\
+            static_assert(!std::is_same_v<bool, size_indicator_t>);\
+            Variable<result_elem_t, T_Config, size_indicator_t> tmp;\
+            for(auto i=0u; i<right_t::numSimdPacks; ++i){\
+                tmp.packAt(i) = left op right.packAt(i);\
+            }\
+            return tmp;\
+        }
+
+#define OPERATOR_DEF_VAR_PREFIX(op)\
+        template<typename T_Type, typename T_Config, typename T_SizeInd>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto OPERATOR()op (Variable<T_Type, T_Config, T_SizeInd> var){\
+            /*we assume that all unary operations eturn the same type, make sure that this assumption is correct*/\
+            static_assert(std::is_same_v<T_Type, decltype(op std::declval<T_Type>)>);\
+            for(auto i=0u; i<Variable<T_Type, T_Config, T_SizeInd>::numSimdPacks; ++i){\
+                var.packAt(i) = op var.packAt(i);\
+            }\
+            return var;\
+        }
+
+    ///TODO needs to be defined outside the namespace!
+#define FREE_FUNC_DEF_VAR(funcName)\
+        template<typename T_Type, typename T_Config, typename T_SizeInd>\
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) fName(alpaka::lockstep::Variable<T_Type, T_Config, T_SizeInd> var){\
+            using ret_t = decltype(fName(var[std::declval<std::uint32_t>]));\
+            static_assert(std::is_same_v<T_Type, ret_t>);\
+            for(auto i=0u; i<alpaka::lockstep::Variable<T_Type, T_Config, T_SizeInd>::numSimdPacks; ++i){\
+                var.packAt(i) = fName(var.packAt(i));\
+            }\
+            return var;\
+        }
+
+        OPERATOR_DEF_VAR_BINARY(+)
+        OPERATOR_DEF_VAR_BINARY(-)
+        OPERATOR_DEF_VAR_BINARY(*)
+        OPERATOR_DEF_VAR_BINARY(/)
+        OPERATOR_DEF_VAR_BINARY(%)
+        OPERATOR_DEF_VAR_BINARY(<<)
+        OPERATOR_DEF_VAR_BINARY(>>)
+
+        OPERATOR_DEF_VAR_PREFIX(!)
+        OPERATOR_DEF_VAR_PREFIX(~)
+
+    } // namespace lockstep
+} // namespace alpaka
+
+        FREE_FUNC_DEF_VAR(std::abs)
+
+namespace alpaka
+{
+    namespace lockstep
+    {
+        ///TODO need shift operators -> var << var, var << int
+
+
+
+
+#undef OPERATOR_DEF_VAR_ASSIGN
+#undef FREE_FUNC_DEF_VAR
+#undef OPERATOR_DEF_VAR_PREFIX
+#undef OPERATOR_DEF_VAR_BINARY
+#undef OPERATOR
 
         /** Creates a variable usable within a lockstep step
          *
