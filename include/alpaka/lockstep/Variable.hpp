@@ -238,10 +238,6 @@ namespace alpaka
 {
     namespace lockstep
     {
-        ///TODO need shift operators -> var << var, var << int
-
-
-
 
 #undef OPERATOR_DEF_VAR_ASSIGN
 #undef FREE_FUNC_DEF_VAR
@@ -287,5 +283,97 @@ namespace alpaka
             return Variable<T_Type, typename ForEach<T_Worker, T_Config>::BaseConfig>(std::forward<T_Args>(args)...);
         }
 
+        //load contiguous elements into a ctxVar, starting at the specified pointer.
+        //the number of loaded elements is the domain size.
+        template<typename T_Worker, typename T_Config, typename T_Elem>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE auto makeVarFromContigousMemory(ForEach<T_Worker, T_Config> const& forEach, T_Elem const * const ptr){
+
+            //allocate uninitialized memory
+            auto tmpVar{makeVar<T_Elem>(forEach)};
+
+            using pack_t = typename std::decay_t<decltype(tmpVar)>::pack_t;
+
+            // number of iterations each worker can safely execute without boundary checks
+            constexpr uint32_t guaranteedPackLoadsPerWorker = T_Config::domainSize / (T_Config::numWorkers * laneCount_v<pack_t>);
+            if constexpr(guaranteedPackLoadsPerWorker>0){
+                for(auto i=0u; i<guaranteedPackLoadsPerWorker; ++i){
+                    tmpVar.packAt(i) = alpaka::lockstep::loadPackUnaligned<pack_t>(ptr+i*laneCount_v<pack_t>);
+                }
+            }
+
+            constexpr uint32_t elementLoadsLeftForAllWorkers = T_Config::domainSize - guaranteedPackLoadsPerWorker * T_Config::numWorkers * laneCount_v<pack_t>;
+            constexpr bool incompletePackRequired = elementLoadsLeftForAllWorkers % laneCount_v<pack_t> != 0u;
+            constexpr uint32_t singleElemLoadsRequired = T_Config::domainSize % laneCount_v<pack_t> != 0u;
+            constexpr uint32_t guaranteedPackLoadsTotal = guaranteedPackLoadsPerWorker * T_Config::numWorkers;
+            constexpr uint32_t workersWithLoadsLeft = alpaka::core::divCeil(elementLoadsLeftForAllWorkers, laneCount_v<pack_t>);
+
+            if constexpr(elementLoadsLeftForAllWorkers > 0){
+
+                const uint32_t index = guaranteedPackLoadsTotal + forEach.getWorkerIdx();
+
+                if constexpr(incompletePackRequired){
+                    const bool hasCompletePackLeft = forEach.getWorkerIdx() < workersWithLoadsLeft - 1;
+                    const bool hasIncompletePackLeft = forEach.getWorkerIdx() ==  workersWithLoadsLeft - 1;
+                    if(hasCompletePackLeft){
+                        tmpVar.packAt(index) = alpaka::lockstep::loadPackUnaligned<pack_t>(ptr+index*laneCount_v<pack_t>);
+                    }
+                    if(hasIncompletePackLeft){
+                        for(auto i=0u; i<singleElemLoadsRequired; ++i){
+                            tmpVar[index*laneCount_v<pack_t>+i] = ptr[index*laneCount_v<pack_t>+i];
+                        }
+                    }
+                }else{
+                    const bool currentWorkerHasOneMorePack = forEach.getWorkerIdx() < workersWithLoadsLeft;
+                    if(currentWorkerHasOneMorePack){
+                        tmpVar.packAt(index) = alpaka::lockstep::loadPackUnaligned<pack_t>(ptr+index*laneCount_v<pack_t>);
+                    }
+                }
+            }
+            return tmpVar;
+        }
+
+        template<typename T_Worker, typename T_Elem, typename T_Config, typename T_SizeInd>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void storeVarToContigousMemory(ForEach<T_Worker, T_Config> const& forEach, Variable<T_Elem, T_Config, T_SizeInd> const& var, T_Elem * const ptr){
+
+            using pack_t = typename std::decay_t<decltype(var)>::pack_t;
+
+            // number of iterations each worker can safely execute without boundary checks
+            constexpr uint32_t guaranteedPackStoresPerWorker = T_Config::domainSize / (T_Config::numWorkers * laneCount_v<pack_t>);
+            if constexpr(guaranteedPackStoresPerWorker>0){
+                for(auto i=0u; i<guaranteedPackStoresPerWorker; ++i){
+                    alpaka::lockstep::storePackUnaligned<pack_t>(var.packAt(i), ptr+i*laneCount_v<pack_t>);
+                }
+            }
+
+            constexpr uint32_t elementStoresLeftForAllWorkers = T_Config::domainSize - guaranteedPackStoresPerWorker * T_Config::numWorkers * laneCount_v<pack_t>;
+            constexpr bool incompletePackRequired = elementStoresLeftForAllWorkers % laneCount_v<pack_t> != 0u;
+            constexpr uint32_t singleElemStoresRequired = T_Config::domainSize % laneCount_v<pack_t> != 0u;
+            constexpr uint32_t guaranteedPackStoresTotal = guaranteedPackStoresPerWorker * T_Config::numWorkers;
+            constexpr uint32_t workersWithStoresLeft = alpaka::core::divCeil(elementStoresLeftForAllWorkers, laneCount_v<pack_t>);
+
+            if constexpr(elementStoresLeftForAllWorkers > 0){
+
+                const uint32_t index = guaranteedPackStoresTotal + forEach.getWorkerIdx();
+
+                if constexpr(incompletePackRequired){
+                    const bool hasCompletePackLeft = forEach.getWorkerIdx() < workersWithStoresLeft - 1;
+                    const bool hasIncompletePackLeft = forEach.getWorkerIdx() ==  workersWithStoresLeft - 1;
+                    if(hasCompletePackLeft){
+                        alpaka::lockstep::storePackUnaligned<pack_t>(var.packAt(index), ptr+index*laneCount_v<pack_t>);
+                    }
+                    if(hasIncompletePackLeft){
+                        for(auto i=0u; i<singleElemStoresRequired; ++i){
+                            ptr[index*laneCount_v<pack_t>+i] = var[index*laneCount_v<pack_t>+i];
+                        }
+                    }
+                }else{
+                    const bool currentWorkerHasOneMorePack = forEach.getWorkerIdx() < workersWithStoresLeft;
+                    if(currentWorkerHasOneMorePack){
+                        alpaka::lockstep::storePackUnaligned<pack_t>(var.packAt(index), ptr+index*laneCount_v<pack_t>);
+                    }
+
+                }
+            }
+        }
     } // namespace lockstep
 } // namespace alpaka
