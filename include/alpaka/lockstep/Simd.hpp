@@ -86,7 +86,7 @@ namespace alpaka::lockstep
     }
 
     template<typename T_Dest, typename T_BoolOrMask>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) conditionalAssignable(T_Dest& dest, T_BoolOrMask const& select){
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto conditionalAssignable(T_Dest& dest, T_BoolOrMask const& select){
         static_assert(!std::is_const_v<T_Dest>);
         static_assert(isPack_v<T_Dest>);
         static_assert(std::is_same_v<bool, elemTOfPack_t<T_BoolOrMask>>);
@@ -323,7 +323,7 @@ namespace alpaka::lockstep
                 for(auto i=0u;i<sizeof(std::decay_t<decltype(forReturn)>);++i){
                     std::cout << std::setw(4) << static_cast<uint32_t>(reinterpret_cast<char*>(&forReturn)[i]) << " ";
                 }
-                std::cout<< std::endl;
+                std::cout << std::endl;
 #endif
                 return std::experimental::where(select, dest);
             }
@@ -535,12 +535,17 @@ namespace alpaka::lockstep
     template<typename T_Left, typename T_Right, std::enable_if_t<packOperatorRequirements_v<T_Left, T_Right> && (!isMask_v<T_Left> && isMask_v<T_Right>), int> = 0>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator- (T_Left&& left, T_Right&& right){
         using leftElem_t = elemTOfPack_t<std::decay_t<T_Left>>;
-        auto pack = std::forward<T_Left>(left);
-        auto maskCopy = std::forward<T_Right>(right);
+
+        //force copies to make sure that we have objects that will not go out of scope for the duration of this function
+        std::decay_t<T_Left> pack(left);
+        std::decay_t<T_Right> maskCopy(right);
 
 #if 0
-        conditionalAssignable(pack, maskCopy) -= static_cast<leftElem_t>(1);
+        /// forward
+        conditionalAssignable(pack, std::forward<T_Right>(right)) -= static_cast<leftElem_t>(1);
 #else
+
+        //make two copies so each variant can be tested with its own data
         auto packForWhere = pack;
         auto packForTrait = pack;
 
@@ -561,24 +566,39 @@ namespace alpaka::lockstep
 
         static_assert(std::is_same_v<std::decay_t<decltype(where1)>, std::decay_t<decltype(where2)>>);
 
+        //should do the same thing as below but fails to do so
         conditionalAssignable(pack, maskCopy) -= static_cast<leftElem_t>(1);
 
+        //object returned allows subtraction of 1 from all elems in the pack where the mask is 1
         std::experimental::where(maskCopy, packForWhere) -= static_cast<leftElem_t>(1);
 
+        //more explicit, but otherwise equivalent to the 1st variant (6 lines above)
         trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, std::decay_t<decltype(packForTrait)>>::elemWiseConditionalAssignable(packForTrait, maskCopy) -= static_cast<leftElem_t>(1);
 
-        const bool match = std::experimental::all_of(packForWhere==pack);
-        if(!match){
+        const bool matchWithAlias = std::experimental::all_of(packForWhere==pack);
+        const bool matchWithTrait = std::experimental::all_of(packForWhere==packForTrait);
+
+        //report if one method works but the other doesnt
+        if(matchWithAlias ^ matchWithTrait){
+            std::cout << "\n\n\nmatchWithAlias ^ matchWithTrait was true!\n\n\n"<<std::endl;
+        }
+
+        if(!matchWithAlias){
             std::cout << "mismatch in operator-\ncorrect:    [";
             for(auto i=0u;i<laneCount_v<std::decay_t<T_Left>>;++i){
-                std::cout<<packForWhere[i]<<" ";
+                std::cout<<std::setw(3)<<packForWhere[i];
             }
-            std::cout << "]\ncalculated: [";
+            std::cout << " ]\ncalculated: [";
             for(auto i=0u;i<laneCount_v<std::decay_t<T_Left>>;++i){
-                std::cout<<pack[i]<<" ";
+                std::cout<<std::setw(3)<<pack[i];
             }
-            std::cout << "]"<<std::endl;
+            std::cout << " ]\nmask:       [";
+            for(auto i=0u;i<laneCount_v<std::decay_t<T_Left>>;++i){
+                std::cout<<std::setw(3)<<(maskCopy[i] ? "1" : "0");
+            }
+            std::cout<<" ]"<<std::endl;
 
+            //throw so we dont get the same error over and over
             throw std::invalid_argument( "operator- was faulty" );
         }
 #endif
