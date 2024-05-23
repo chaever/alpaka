@@ -132,6 +132,37 @@ namespace alpaka::lockstep
             static constexpr bool value = isTrivialPack_v<T_Type>;
         };
 
+        template<typename T_Dest, typename T_Mask=bool>
+        struct ConditionallyAssignableReference{
+            T_Dest & dest;
+            T_Mask const dontIgnoreAssignmnet;
+
+            template<typename T>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void operator= (T&& value) {
+                if(dontIgnoreAssignmnet)
+                {
+                    dest = std::forward<T>(value);
+                }
+            }
+
+#define ASSIGN_OP(op)\
+            template<typename T>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void operator op (T&& value) {\
+                if(dontIgnoreAssignmnet)\
+                {\
+                    dest op std::forward<T>(value);\
+                }\
+            }
+
+            ASSIGN_OP(+=)
+            ASSIGN_OP(-=)
+            ASSIGN_OP(*=)
+            ASSIGN_OP(/=)
+            ASSIGN_OP(%=)
+
+#undef ASSIGN_OP
+        };
+
         //fallback definition, compiles only for trivial packs
         template<typename T_SimdBackend, typename T_Pack>
         struct PackTraits{

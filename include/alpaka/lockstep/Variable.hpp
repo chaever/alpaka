@@ -206,18 +206,6 @@ namespace alpaka
             return var;\
         }
 
-    ///TODO needs to be defined outside the namespace!
-#define FREE_FUNC_DEF_VAR(funcName)\
-        template<typename T_Type, typename T_Config, typename T_SizeInd>\
-        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) fName(alpaka::lockstep::Variable<T_Type, T_Config, T_SizeInd> var){\
-            using ret_t = decltype(fName(var[std::declval<std::uint32_t>]));\
-            static_assert(std::is_same_v<T_Type, ret_t>);\
-            for(auto i=0u; i<alpaka::lockstep::Variable<T_Type, T_Config, T_SizeInd>::numSimdPacks; ++i){\
-                var.packAt(i) = fName(var.packAt(i));\
-            }\
-            return var;\
-        }
-
         OPERATOR_DEF_VAR_BINARY(+)
         OPERATOR_DEF_VAR_BINARY(-)
         OPERATOR_DEF_VAR_BINARY(*)
@@ -229,10 +217,52 @@ namespace alpaka
         OPERATOR_DEF_VAR_PREFIX(!)
         OPERATOR_DEF_VAR_PREFIX(~)
 
+        template<typename T_Type, typename T_Config, typename T_SizeIndDest, typename T_SizeIndMask>
+        struct MaskedAssignReference{
+            Variable<T_Type, T_Config, T_SizeIndDest> & dest;
+            Variable<bool, T_Config, T_SizeIndMask> const mask;
+
+            template<typename T_TypeOperand, typename T_SizeIndOperand>
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr void operator= (Variable<T_TypeOperand, T_Config, T_SizeIndOperand> value){
+                for(auto i=0u; i<std::decay_t<decltype(dest)>::numSimdPacks; ++i){
+                    conditionallyAssignable(dest.packAt(i), mask.packAt(i)) = value.packAt(i);
+                }
+            }
+
+#define ASSIGN_OP(op)\
+            template<typename T_TypeOperand, typename T_SizeIndOperand>\
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr void OPERATOR()op (Variable<T_TypeOperand, T_Config, T_SizeIndOperand> value){\
+                for(auto i=0u; i<std::decay_t<decltype(dest)>::numSimdPacks; ++i){\
+                    conditionallyAssignable(dest.packAt(i), mask.packAt(i)) op value.packAt(i);\
+                }\
+            }
+
+            ASSIGN_OP(+=)
+            ASSIGN_OP(-=)
+            ASSIGN_OP(*=)
+            ASSIGN_OP(/=)
+            ASSIGN_OP(%=)
+
+#undef ASSIGN_OP
+        };
+
     } // namespace lockstep
 } // namespace alpaka
 
-        FREE_FUNC_DEF_VAR(std::abs)
+        template<typename T_Type, typename T_Config, typename T_SizeInd>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) std::abs(alpaka::lockstep::Variable<T_Type, T_Config, T_SizeInd> var){
+            using ret_t = decltype(std::abs(var[std::declval<std::uint32_t>]));
+            static_assert(std::is_same_v<T_Type, ret_t>);
+            for(auto i=0u; i<alpaka::lockstep::Variable<T_Type, T_Config, T_SizeInd>::numSimdPacks; ++i){
+                var.packAt(i) = std::abs(var.packAt(i));
+            }
+            return var;
+        }
+
+        template<typename T_Type, typename T_Config, typename T_SizeIndAssignee, typename T_SizeIndMask>
+        ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) where(alpaka::lockstep::Variable<T_Type, T_Config, T_SizeIndAssignee> & var, alpaka::lockstep::Variable<bool, T_Config, T_SizeIndMask> const& mask){
+            return alpaka::lockstep::MaskedAssignReference(var, mask);
+        }
 
 namespace alpaka
 {
@@ -240,7 +270,6 @@ namespace alpaka
     {
 
 #undef OPERATOR_DEF_VAR_ASSIGN
-#undef FREE_FUNC_DEF_VAR
 #undef OPERATOR_DEF_VAR_PREFIX
 #undef OPERATOR_DEF_VAR_BINARY
 #undef OPERATOR
