@@ -41,7 +41,7 @@ namespace alpaka
              * @param domElemIndex linear index within the domain
              * @param workerElemIndex virtual workers linear index of the work item
              */
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE Idx(uint32_t const domElemIndex, uint32_t const workerElemIndex)
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr Idx(uint32_t const domElemIndex, uint32_t const workerElemIndex)
                 : workerElemIdx(std::move(workerElemIndex))
                 , domElemIdx(std::move(domElemIndex))
             {

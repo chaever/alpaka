@@ -23,8 +23,8 @@ namespace alpaka::core
 #endif
 
     /// Returns the ceiling of a / b, as integer.
-    template<typename Integral>
-    [[nodiscard]] ALPAKA_FN_HOST_ACC constexpr auto divCeil(Integral a, Integral b) -> Integral
+    template<typename Integral_lhs, typename Integral_rhs>
+    [[nodiscard]] ALPAKA_FN_HOST_ACC constexpr auto divCeil(Integral_lhs a, Integral_rhs b) -> auto
     {
         return (a + b - 1) / b;
     }
