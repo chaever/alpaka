@@ -82,6 +82,7 @@ namespace alpaka::lockstep
 
     template<typename T_Pack>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) getElem(T_Pack & pack, uint32_t const i){
+        ///NOTE: we rely on T_Pack being const-qualified sometimes to cover const objects here
         return trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, std::decay_t<T_Pack>>::getElemAt(pack, i);
     }
 
