@@ -326,7 +326,8 @@ namespace alpaka
             //allocate uninitialized memory
             auto tmpVar{makeVar<T_Elem>(forEach)};
 
-            using pack_t = typename std::decay_t<decltype(tmpVar)>::pack_t;
+            using var_t = std::decay_t<decltype(tmpVar)>;
+            using pack_t = typename var_t::pack_t;
 
             // number of iterations each worker can safely execute without boundary checks
             constexpr uint32_t guaranteedPackLoadsPerWorker = T_Config::domainSize / (T_Config::numWorkers * laneCount_v<pack_t>);
@@ -338,29 +339,33 @@ namespace alpaka
 
             constexpr uint32_t elementLoadsLeftForAllWorkers = T_Config::domainSize - guaranteedPackLoadsPerWorker * T_Config::numWorkers * laneCount_v<pack_t>;
             constexpr bool incompletePackRequired = elementLoadsLeftForAllWorkers % laneCount_v<pack_t> != 0u;
-            constexpr uint32_t singleElemLoadsRequired = T_Config::domainSize % laneCount_v<pack_t> != 0u;
+            constexpr uint32_t singleElemLoadsRequired = T_Config::domainSize % laneCount_v<pack_t>;
             constexpr uint32_t guaranteedPackLoadsTotal = guaranteedPackLoadsPerWorker * T_Config::numWorkers;
             constexpr uint32_t workersWithLoadsLeft = alpaka::core::divCeil(elementLoadsLeftForAllWorkers, laneCount_v<pack_t>);
 
             if constexpr(elementLoadsLeftForAllWorkers > 0){
 
-                const uint32_t index = guaranteedPackLoadsTotal + forEach.getWorkerIdx();
+                const uint32_t index = guaranteedPackLoadsTotal + forEach.getWorker().getWorkerIdx();
+
+                //last pack in array that this worker owns
+                pack_t & lastPack = tmpVar.packAt(var_t::numSimdPacks - 1);
 
                 if constexpr(incompletePackRequired){
-                    const bool hasCompletePackLeft = forEach.getWorkerIdx() < workersWithLoadsLeft - 1;
-                    const bool hasIncompletePackLeft = forEach.getWorkerIdx() ==  workersWithLoadsLeft - 1;
+                    const bool hasCompletePackLeft = forEach.getWorker().getWorkerIdx() < workersWithLoadsLeft - 1;
+                    const bool hasIncompletePackLeft = forEach.getWorker().getWorkerIdx() ==  workersWithLoadsLeft - 1;
+
                     if(hasCompletePackLeft){
-                        tmpVar.packAt(index) = alpaka::lockstep::loadPackUnaligned<pack_t>(ptr+index*laneCount_v<pack_t>);
+                        lastPack = alpaka::lockstep::loadPackUnaligned<pack_t>(ptr+index*laneCount_v<pack_t>);
                     }
                     if(hasIncompletePackLeft){
                         for(auto i=0u; i<singleElemLoadsRequired; ++i){
-                            tmpVar[index*laneCount_v<pack_t>+i] = ptr[index*laneCount_v<pack_t>+i];
+                            getElem(lastPack, i) = ptr[index*laneCount_v<pack_t>+i];
                         }
                     }
                 }else{
-                    const bool currentWorkerHasOneMorePack = forEach.getWorkerIdx() < workersWithLoadsLeft;
+                    const bool currentWorkerHasOneMorePack = forEach.getWorker().getWorkerIdx() < workersWithLoadsLeft;
                     if(currentWorkerHasOneMorePack){
-                        tmpVar.packAt(index) = alpaka::lockstep::loadPackUnaligned<pack_t>(ptr+index*laneCount_v<pack_t>);
+                        lastPack = alpaka::lockstep::loadPackUnaligned<pack_t>(ptr+index*laneCount_v<pack_t>);
                     }
                 }
             }
@@ -370,7 +375,8 @@ namespace alpaka
         template<typename T_Worker, typename T_Elem, typename T_Config, typename T_SizeInd>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE void storeVarToContigousMemory(ForEach<T_Worker, T_Config> const& forEach, Variable<T_Elem, T_Config, T_SizeInd> const& var, T_Elem * const ptr){
 
-            using pack_t = typename std::decay_t<decltype(var)>::pack_t;
+            using var_t = std::decay_t<decltype(var)>;
+            using pack_t = typename var_t::pack_t;
 
             // number of iterations each worker can safely execute without boundary checks
             constexpr uint32_t guaranteedPackStoresPerWorker = T_Config::domainSize / (T_Config::numWorkers * laneCount_v<pack_t>);
@@ -382,47 +388,53 @@ namespace alpaka
 
             constexpr uint32_t elementStoresLeftForAllWorkers = T_Config::domainSize - guaranteedPackStoresPerWorker * T_Config::numWorkers * laneCount_v<pack_t>;
             constexpr bool incompletePackRequired = elementStoresLeftForAllWorkers % laneCount_v<pack_t> != 0u;
-            constexpr uint32_t singleElemStoresRequired = T_Config::domainSize % laneCount_v<pack_t> != 0u;
+            constexpr uint32_t singleElemStoresRequired = T_Config::domainSize % laneCount_v<pack_t>;
             constexpr uint32_t guaranteedPackStoresTotal = guaranteedPackStoresPerWorker * T_Config::numWorkers;
             constexpr uint32_t workersWithStoresLeft = alpaka::core::divCeil(elementStoresLeftForAllWorkers, laneCount_v<pack_t>);
 
             if constexpr(elementStoresLeftForAllWorkers > 0){
 
-                const uint32_t index = guaranteedPackStoresTotal + forEach.getWorkerIdx();
+                const uint32_t index = guaranteedPackStoresTotal + forEach.getWorker().getWorkerIdx();
+
+                //last pack in array that this worker owns
+                pack_t const& lastPack = var.packAt(var_t::numSimdPacks - 1);
 
                 if constexpr(incompletePackRequired){
-                    const bool hasCompletePackLeft = forEach.getWorkerIdx() < workersWithStoresLeft - 1;
-                    const bool hasIncompletePackLeft = forEach.getWorkerIdx() ==  workersWithStoresLeft - 1;
+                    const bool hasCompletePackLeft = forEach.getWorker().getWorkerIdx() < workersWithStoresLeft - 1;
+                    const bool hasIncompletePackLeft = forEach.getWorker().getWorkerIdx() ==  workersWithStoresLeft - 1;
+
                     if(hasCompletePackLeft){
-                        alpaka::lockstep::storePackUnaligned<pack_t>(var.packAt(index), ptr+index*laneCount_v<pack_t>);
+                        alpaka::lockstep::storePackUnaligned<pack_t>(lastPack, ptr+index*laneCount_v<pack_t>);
                     }
                     if(hasIncompletePackLeft){
                         for(auto i=0u; i<singleElemStoresRequired; ++i){
-                            ptr[index*laneCount_v<pack_t>+i] = var[index*laneCount_v<pack_t>+i];
+                            ptr[index*laneCount_v<pack_t>+i] = getElem(lastPack, i);
                         }
                     }
                 }else{
-                    const bool currentWorkerHasOneMorePack = forEach.getWorkerIdx() < workersWithStoresLeft;
+                    const bool currentWorkerHasOneMorePack = forEach.getWorker().getWorkerIdx() < workersWithStoresLeft;
                     if(currentWorkerHasOneMorePack){
-                        alpaka::lockstep::storePackUnaligned<pack_t>(var.packAt(index), ptr+index*laneCount_v<pack_t>);
+                        alpaka::lockstep::storePackUnaligned<pack_t>(lastPack, ptr+index*laneCount_v<pack_t>);
                     }
                 }
             }
         }
 
         template<typename T_Elem, typename T_Config, typename T_SizeInd>
+        constexpr auto laneCount_v<Variable<T_Elem, T_Config, T_SizeInd>> = T_Config::domainSize;
+
+        //Note: returned element depends on the worker, use with caution!!
+        template<typename T_Elem, typename T_Config, typename T_SizeInd>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) getElem(Variable<T_Elem, T_Config, T_SizeInd> const& var, uint32_t const i){
             constexpr auto laneCount = laneCount_v<typename std::decay_t<decltype(var)>::pack_t>;
             return getElem(var.packAt(i/laneCount), i%laneCount);
         }
 
+        //Note: returned element depends on the worker, use with caution!!
         template<typename T_Elem, typename T_Config, typename T_SizeInd>
         ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) getElem(Variable<T_Elem, T_Config, T_SizeInd> & var, uint32_t const i){
             constexpr auto laneCount = laneCount_v<typename std::decay_t<decltype(var)>::pack_t>;
             return getElem(var.packAt(i/laneCount), i%laneCount);
         }
-
-        template<typename T_Elem, typename T_Config, typename T_SizeInd>
-        constexpr auto laneCount_v<Variable<T_Elem, T_Config, T_SizeInd>> = T_Config::domainSize;
     } // namespace lockstep
 } // namespace alpaka
