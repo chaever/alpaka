@@ -86,7 +86,7 @@ namespace alpaka::lockstep
     }
 
     template<typename T_Dest, typename T_BoolOrMask>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr auto conditionalAssignable(T_Dest& dest, T_BoolOrMask const& select){
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) conditionalAssignable(T_Dest& dest, T_BoolOrMask const& select){
         static_assert(!std::is_const_v<T_Dest>);
         static_assert(isPack_v<T_Dest>);
         static_assert(std::is_same_v<bool, elemTOfPack_t<T_BoolOrMask>>);
@@ -197,7 +197,7 @@ namespace alpaka::lockstep
             }
 
             ///TODO tmp modification returns by value, forced
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto elemWiseConditionalAssignable(Elem_t & dest, bool const select){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalAssignable(Elem_t & dest, bool const select){
                 return ConditionallyAssignableReference(dest, select);
             }
         };
@@ -313,7 +313,7 @@ namespace alpaka::lockstep
 
             ///TODO tmp modification returns by value, forced
             template<typename T_Mask>
-            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr auto elemWiseConditionalAssignable(stdMultipliedSimdAbiPack_t & dest, T_Mask const& select){
+            ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE static constexpr decltype(auto) elemWiseConditionalAssignable(stdMultipliedSimdAbiPack_t & dest, T_Mask const& select){
 #if 1
                 static_assert(isMask_v<T_Mask>);
                 auto forReturn = std::experimental::where(select, dest);
@@ -532,6 +532,14 @@ namespace alpaka::lockstep
         return pack;
     }
 
+    ///TODO for debugging only, remove after!!!
+    template<typename T_Pack, typename T_Mask>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) foo(T_Mask&& mask, T_Pack&& pack){
+        //static_assert(std::is_same_v<T_Mask, std::decay_t<T_Mask>>);
+        //static_assert(std::is_same_v<T_Pack, std::decay_t<T_Pack>>);
+        return std::experimental::where(std::forward<T_Mask>(mask), std::forward<T_Pack>(pack));
+    }
+
     template<typename T_Left, typename T_Right, std::enable_if_t<packOperatorRequirements_v<T_Left, T_Right> && (!isMask_v<T_Left> && isMask_v<T_Right>), int> = 0>
     ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator- (T_Left&& left, T_Right&& right){
         using leftElem_t = elemTOfPack_t<std::decay_t<T_Left>>;
@@ -548,7 +556,7 @@ namespace alpaka::lockstep
         //make two copies so each variant can be tested with its own data
         auto packForWhere = pack;
         auto packForTrait = pack;
-
+        auto packForFoo   = pack;
 
         std::cout << "operator-  :address of pack is " << reinterpret_cast<uint64_t>(&pack) << std::endl;
         std::cout << "operator-  :address of mask is " << reinterpret_cast<uint64_t>(&maskCopy) << std::endl;
@@ -575,8 +583,16 @@ namespace alpaka::lockstep
         //more explicit, but otherwise equivalent to the 1st variant (6 lines above)
         trait::PackTraits<simdBackendTags::SelectedSimdBackendTag, std::decay_t<decltype(packForTrait)>>::elemWiseConditionalAssignable(packForTrait, maskCopy) -= static_cast<leftElem_t>(1);
 
+        //custom foo function
+        foo(maskCopy, packForFoo) -= static_cast<leftElem_t>(1);
+
         const bool matchWithAlias = std::experimental::all_of(packForWhere==pack);
         const bool matchWithTrait = std::experimental::all_of(packForWhere==packForTrait);
+        const bool matchWithFoo   = std::experimental::all_of(packForWhere==packForFoo);
+
+        std::cout << "matchWithAlias = " << matchWithAlias << std::endl;
+        std::cout << "matchWithTrait = " << matchWithTrait << std::endl;
+        std::cout << "matchWithFoo = " << matchWithFoo << std::endl;
 
         //report if one method works but the other doesnt
         if(matchWithAlias ^ matchWithTrait){
