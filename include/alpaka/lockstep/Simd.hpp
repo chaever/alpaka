@@ -534,15 +534,47 @@ namespace alpaka::lockstep
 
     ///TODO for debugging only, remove after!!!
     template<typename T_Pack, typename T_Mask>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) foo(T_Mask&& mask, T_Pack&& pack){
-        //static_assert(std::is_same_v<T_Mask, std::decay_t<T_Mask>>);
-        //static_assert(std::is_same_v<T_Pack, std::decay_t<T_Pack>>);
-        return std::experimental::where(std::forward<T_Mask>(mask), std::forward<T_Pack>(pack));
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) foo(T_Mask & mask, T_Pack & pack){
+
+        //assure T_Pack and T_Mask are not ref or const
+        static_assert(std::is_same_v<T_Mask, std::decay_t<T_Mask>>);
+        static_assert(std::is_same_v<T_Pack, std::decay_t<T_Pack>>);
+
+        return std::experimental::where(mask, pack);
+    }
+
+    template<typename T_Pack, typename T_Mask>
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) minusOperatorImitation(T_Pack pack, T_Mask mask){
+
+        //assure T_Pack and T_Mask are not ref or const
+        static_assert(std::is_same_v<T_Pack, std::decay_t<T_Pack>>);
+        static_assert(std::is_same_v<T_Mask, std::decay_t<T_Mask>>);
+
+        using leftElem_t = elemTOfPack_t<std::decay_t<T_Pack>>;
+
+        foo(mask, pack) -= static_cast<leftElem_t>(1);
+
+        auto packForWhere = pack;
+
+        std::experimental::where(mask, packForWhere) -= static_cast<leftElem_t>(1);
+
+        const bool matchWithAlias = std::experimental::all_of(packForWhere==pack);
+
+        std::cout << "minusOperatorImitation : matchWithAlias = " << matchWithAlias << std::endl;
+
+        if(!matchWithAlias){
+            throw std::invalid_argument("minusOperatorImitation was faulty");
+        }
+
+        return pack;
     }
 
     template<typename T_Left, typename T_Right, std::enable_if_t<packOperatorRequirements_v<T_Left, T_Right> && (!isMask_v<T_Left> && isMask_v<T_Right>), int> = 0>
-    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator- (T_Left&& left, T_Right&& right){
+    ALPAKA_FN_HOST_ACC ALPAKA_FN_INLINE constexpr decltype(auto) operator- (T_Left left, T_Right right){
         using leftElem_t = elemTOfPack_t<std::decay_t<T_Left>>;
+
+        static_assert(std::is_same_v<std::decay_t<T_Left>, T_Left>);
+        static_assert(std::is_same_v<std::decay_t<T_Right>, T_Right>);
 
         //force copies to make sure that we have objects that will not go out of scope for the duration of this function
         std::decay_t<T_Left> pack(left);
