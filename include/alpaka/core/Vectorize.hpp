@@ -28,6 +28,30 @@
     #define ALPAKA_VECTORIZE_HINT(...)
 #endif*/
 
+#if defined(__INTEL_LLVM_COMPILER)
+// icx supports #pragma ivdep, but it will issue a diagnostic that it needs vectorize(assume_safety) to vectorize.
+// Let's keep both pragmas for now.
+#    define ALPAKA_INDEPENDENT_DATA _Pragma("ivdep") _Pragma("clang loop vectorize(assume_safety) interleave(assume_safety)")
+#elif defined(__clang__)
+#    define ALPAKA_INDEPENDENT_DATA _Pragma("clang loop vectorize(assume_safety) interleave(assume_safety)")
+#elif defined(__NVCOMPILER)
+#    define ALPAKA_INDEPENDENT_DATA _Pragma("ivdep")
+#elif defined(__GNUC__)
+#    define ALPAKA_INDEPENDENT_DATA _Pragma("GCC ivdep")
+#elif defined(_MSC_VER)
+#    define ALPAKA_INDEPENDENT_DATA __pragma(loop(ivdep))
+#else
+/// May be put in front of a loop statement. Indicates that all (!) data access inside the loop is indepent, so the
+/// loop can be safely vectorized. Example: \code{.cpp}
+///     ALPAKA_INDEPENDENT_DATA
+///     for(int i = 0; i < N; ++i)
+///         // because of ALPAKA_INDEPENDENT_DATA the compiler knows that a and b
+///         // do not overlap and the operation can safely be vectorized
+///         a[i] += b[i];
+/// \endcode
+#    define ALPAKA_INDEPENDENT_DATA
+#endif
+
 namespace alpaka::core::vectorization
 {
     // The alignment required to enable optimal performance dependant on the target architecture.

@@ -200,10 +200,12 @@ namespace alpaka
                 constexpr uint32_t peeledIterations = domainSize / (simdSize * numWorkers);
                 if constexpr(peeledIterations != 0u)
                 {
+                    ALPAKA_INDEPENDENT_DATA
                     for(uint32_t i = 0u; i < peeledIterations; ++i)
                     {
                         uint32_t const beginVirtualWorker = i * simdSize;
                         uint32_t const beginIdx = beginVirtualWorker * numWorkers + simdSize * this->getWorkerIdx();
+                        ALPAKA_INDEPENDENT_DATA
                         for(uint32_t s = 0u; s < simdSize; ++s)
                             detail::FunctorWrapper{}(
                                 std::forward<T_Functor>(functor),
@@ -218,6 +220,7 @@ namespace alpaka
                 if constexpr(hasRemainder)
                 {
                     constexpr uint32_t leftOverIndices = domainSize - (peeledIterations * numWorkers * simdSize);
+                    ALPAKA_INDEPENDENT_DATA
                     for(uint32_t s = 0u; s < simdSize; ++s)
                     {
                         if(this->getWorkerIdx() * simdSize + s < leftOverIndices)
