@@ -203,8 +203,6 @@ namespace alpaka
                     ALPAKA_INDEPENDENT_DATA
                     for(uint32_t i = 0u; i < peeledIterations; ++i)
                     {
-                        static_assert(simdSize == 1);
-
                         uint32_t const beginVirtualWorker = i * simdSize;
                         uint32_t const beginIdx = beginVirtualWorker * numWorkers + simdSize * this->getWorkerIdx();
 
