@@ -203,15 +203,26 @@ namespace alpaka
                     ALPAKA_INDEPENDENT_DATA
                     for(uint32_t i = 0u; i < peeledIterations; ++i)
                     {
+                        static_assert(simdSize == 1);
+
                         uint32_t const beginVirtualWorker = i * simdSize;
                         uint32_t const beginIdx = beginVirtualWorker * numWorkers + simdSize * this->getWorkerIdx();
-                        ALPAKA_INDEPENDENT_DATA
-                        for(uint32_t s = 0u; s < simdSize; ++s)
+
+                        if constexpr(simdSize != 1){
+                            ALPAKA_INDEPENDENT_DATA
+                            for(uint32_t s = 0u; s < simdSize; ++s)
+                                detail::FunctorWrapper{}(
+                                    std::forward<T_Functor>(functor),
+                                    Idx(beginIdx + s, //Idx of the virtual worker in the domain
+                                    beginVirtualWorker + s), //describes the how-many-th virtual worker this is for the executing worker
+                                    std::forward<T_CtxVars>(ctxVars)...);
+                        }else{
                             detail::FunctorWrapper{}(
-                                std::forward<T_Functor>(functor),
-                                Idx(beginIdx + s, //Idx of the virtual worker in the domain
-                                beginVirtualWorker + s), //describes the how-many-th virtual worker this is for the executing worker
-                                std::forward<T_CtxVars>(ctxVars)...);
+                                    std::forward<T_Functor>(functor),
+                                    Idx(beginIdx, //Idx of the virtual worker in the domain
+                                    beginVirtualWorker), //describes the how-many-th virtual worker this is for the executing worker
+                                    std::forward<T_CtxVars>(ctxVars)...);
+                        }
                     }
                 }
 
