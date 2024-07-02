@@ -204,7 +204,9 @@ namespace alpaka
                     for(uint32_t i = 0u; i < peeledIterations; ++i)
                     {
                         uint32_t const beginVirtualWorker = i * simdSize;
-                        uint32_t const beginIdx = beginVirtualWorker * numWorkers + simdSize * this->getWorkerIdx();
+                        //since numWorkers==1 and 0 are compile-time-known the whole expression can be evaluated at compiletime in that case
+                        uint32_t const workerIdx = numWorkers==1 ? 0 : this->getWorkerIdx();
+                        uint32_t const beginIdx = beginVirtualWorker * numWorkers + simdSize * workerIdx;
 
                         if constexpr(simdSize != 1){
                             ALPAKA_INDEPENDENT_DATA
